@@ -7,6 +7,56 @@ from plotly.subplots import make_subplots
 import hashlib
 from datetime import datetime
 
+# Custom CSS to hide Streamlit header, footer, and main menu branding
+st.markdown("""
+<style>
+/* Hide Streamlit header */
+[data-testid="stHeader"] {
+    display: none;
+}
+
+/* Hide Streamlit footer */
+[data-testid="stFooter"] {
+    display: none;
+}
+
+/* Hide main menu branding */
+[data-testid="stSidebarHeader"] {
+    display: none;
+}
+
+/* Hide "Made with Streamlit" branding */
+[data-testid="stSidebarContent"] > div:first-child {
+    display: none;
+}
+
+/* Hide Streamlit's default sidebar elements */
+[data-testid="stSidebarNav"] {
+    display: none;
+}
+
+/* Custom sidebar header */
+.custom-sidebar-header {
+    background-color: #1f77b4;
+    color: white;
+    padding: 20px;
+    text-align: center;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+/* Hide any remaining Streamlit branding */
+.streamlit-container .main .block-container {
+    padding-top: 2rem;
+}
+
+/* Remove Streamlit's default footer spacing */
+.main .block-container {
+    padding-bottom: 2rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Configure Streamlit for wide mode
 st.set_page_config(
     page_title="Healthcare Performance Management System",
