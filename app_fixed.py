@@ -401,6 +401,9 @@ def department_head_interface(department, username):
     # Store user department in session state for filtering
     st.session_state.user_dept = department
     
+    # DEBUG: Show what department we received
+    st.info(f"🔍 DEBUG: Received department = '{department}' (type: {type(department)})")
+    
     # Define department to column mappings
     DEPARTMENT_COLUMNS = {
         'EPI': ['epi'],
@@ -453,14 +456,65 @@ def department_head_interface(department, username):
         'hiv_sti': {'label': 'HIV/STI', 'max': 5}
     }
     
-    # Get columns for this user's department
-    user_columns = DEPARTMENT_COLUMNS.get(department, [])
+    # DEBUG: Show all available departments
+    st.info(f"🔍 DEBUG: Available departments = {list(DEPARTMENT_COLUMNS.keys())}")
+    
+    # Flexible matching - try exact match first, then partial matching
+    user_columns = []
+    matched_department = None
+    
+    # 1. Try exact match
+    if department in DEPARTMENT_COLUMNS:
+        user_columns = DEPARTMENT_COLUMNS[department]
+        matched_department = department
+        st.success(f"🔍 DEBUG: Exact match found for '{department}'")
+    else:
+        # 2. Try case-insensitive match
+        dept_lower = department.lower().strip()
+        for dept_key, columns in DEPARTMENT_COLUMNS.items():
+            if dept_key.lower().strip() == dept_lower:
+                user_columns = columns
+                matched_department = dept_key
+                st.success(f"🔍 DEBUG: Case-insensitive match found: '{department}' → '{dept_key}'")
+                break
+        
+        # 3. Try partial matching (contains)
+        if not user_columns:
+            for dept_key, columns in DEPARTMENT_COLUMNS.items():
+                if dept_lower in dept_key.lower() or dept_key.lower() in dept_lower:
+                    user_columns = columns
+                    matched_department = dept_key
+                    st.success(f"🔍 DEBUG: Partial match found: '{department}' → '{dept_key}'")
+                    break
+    
+    # DEBUG: Show matching results
+    st.info(f"🔍 DEBUG: Matched department = '{matched_department}', Columns = {user_columns}")
     
     if not user_columns:
         st.error(f"❌ No valid data elements assigned to this user. Department '{department}' not found.")
         st.warning("Available departments:")
         for dept in DEPARTMENT_COLUMNS.keys():
             st.write(f"- {dept}")
+        
+        # Additional debugging info
+        st.error("🔍 DEBUGGING INFO:")
+        st.write(f"Input department: '{department}'")
+        st.write(f"Input department (lower): '{department.lower().strip()}'")
+        st.write(f"Input department length: {len(department)}")
+        st.write(f"Input department repr: {repr(department)}")
+        
+        # Show database department for this user
+        try:
+            conn = sqlite3.connect('healthcare_performance.db', check_same_thread=False)
+            cursor = conn.cursor()
+            cursor.execute('SELECT department FROM users WHERE username = ?', (username,))
+            result = cursor.fetchone()
+            if result:
+                st.write(f"Database department for {username}: '{result[0]}' (repr: {repr(result[0])})")
+            conn.close()
+        except Exception as e:
+            st.error(f"Database error: {str(e)}")
+        
         return
     
     st.success(f"✅ Found {len(user_columns)} data elements for {department}")
