@@ -8,6 +8,59 @@ import hashlib
 from datetime import datetime
 import os
 
+# Ethiopian Fiscal Year Quarter Definitions
+ETHIOPIAN_QUARTERS = {
+    'Q1 (Hamle - Meskerem)': {
+        'code': 'Q1',
+        'months': 'Hamle - Meskerem',
+        'description': 'Ethiopian Quarter 1: Hamle to Meskerem'
+    },
+    'Q2 (Tikmt - Tahsas)': {
+        'code': 'Q2',
+        'months': 'Tikmt - Tahsas',
+        'description': 'Ethiopian Quarter 2: Tikmt to Tahsas'
+    },
+    'Q3 (Tir - Megabit)': {
+        'code': 'Q3',
+        'months': 'Tir - Megabit',
+        'description': 'Ethiopian Quarter 3: Tir to Megabit'
+    },
+    'Q4 (Miyazia - Sene)': {
+        'code': 'Q4',
+        'months': 'Miyazia - Sene',
+        'description': 'Ethiopian Quarter 4: Miyazia to Sene'
+    }
+}
+
+def get_current_ethiopian_year():
+    """Get current Ethiopian year"""
+    # Ethiopian calendar is roughly 7-8 years behind Gregorian
+    # Current Gregorian year 2026 = Ethiopian year 2018-2019
+    # This is approximate - for exact conversion, more complex logic needed
+    current_year = datetime.now().year
+    ethiopian_year = current_year - 8
+    return ethiopian_year
+
+def get_current_ethiopian_quarter():
+    """Get current Ethiopian quarter based on Gregorian months"""
+    # This is approximate mapping - adjust based on exact Ethiopian calendar dates
+    current_month = datetime.now().month
+    
+    # Approximate mapping (adjust as needed)
+    if current_month in [9, 10, 11]:  # Sep-Nov
+        return 'Q1 (Hamle - Meskerem)'
+    elif current_month in [12, 1, 2]:  # Dec-Feb
+        return 'Q2 (Tikmt - Tahsas)'
+    elif current_month in [3, 4, 5]:  # Mar-May
+        return 'Q3 (Tir - Megabit)'
+    else:  # Jun-Aug
+        return 'Q4 (Miyazia - Sene)'
+
+def get_ethiopian_year_options():
+    """Get list of Ethiopian years for dropdown"""
+    current_year = get_current_ethiopian_year()
+    return [str(year) for year in range(current_year - 2, current_year + 3)]
+
 # Custom CSS to hide ALL Streamlit branding elements
 hide_st_style = """
 <style>
@@ -114,6 +167,8 @@ def init_database():
                 woreda_name TEXT NOT NULL,
                 department TEXT NOT NULL,
                 entered_by TEXT NOT NULL,
+                ethiopian_year INTEGER NOT NULL,
+                quarter TEXT NOT NULL,
                 medical_service REAL DEFAULT 0,
                 rmh REAL DEFAULT 0,
                 pharmacy_logistic REAL DEFAULT 0,
@@ -313,18 +368,18 @@ def calculate_scores(data):
     return total_score, percentage_score
 
 # Save performance data
-def save_performance_data(woreda_name, department, data, entered_by):
+def save_performance_data(woreda_name, department, data, entered_by, ethiopian_year, quarter):
     try:
         conn = sqlite3.connect('healthcare_performance.db', check_same_thread=False)
         cursor = conn.cursor()
         
         total_score, percentage_score = calculate_scores(data)
         
-        # Check if record exists
+        # Check if record exists for this woreda, department, year, and quarter
         cursor.execute('''
             SELECT id FROM performance_data 
-            WHERE woreda_name = ? AND department = ? AND entered_by = ?
-        ''', (woreda_name, department, entered_by))
+            WHERE woreda_name = ? AND department = ? AND ethiopian_year = ? AND quarter = ?
+        ''', (woreda_name, department, ethiopian_year, quarter))
         existing = cursor.fetchone()
         
         if existing:
@@ -337,7 +392,7 @@ def save_performance_data(woreda_name, department, data, entered_by):
                     full_emr = ?, epi_modernization = ?, zero_dose = ?, multi_sectoral = ?, 
                     cash_program = ?, hygiene_sanitation = ?, hiv_sti = ?, total_score = ?, 
                     percentage_score = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE woreda_name = ? AND department = ? AND entered_by = ?
+                WHERE woreda_name = ? AND department = ? AND ethiopian_year = ? AND quarter = ?
             ''', (
                 data.get('medical_service', 0), data.get('rmh', 0), data.get('pharmacy_logistic', 0),
                 data.get('ultrasound', 0), data.get('apts', 0), data.get('community_pharmacy', 0),
@@ -346,23 +401,26 @@ def save_performance_data(woreda_name, department, data, entered_by):
                 data.get('finance', 0), data.get('plan', 0), data.get('wt', 0),
                 data.get('full_emr', 0), data.get('epi_modernization', 0), data.get('zero_dose', 0),
                 data.get('multi_sectoral', 0), data.get('cash_program', 0), data.get('hygiene_sanitation', 0),
-                data.get('hiv_sti', 0), total_score, percentage_score, woreda_name, department, entered_by
+                data.get('hiv_sti', 0), total_score, percentage_score,
+                woreda_name, department, ethiopian_year, quarter
             ))
         else:
             # Insert new record
             cursor.execute('''
                 INSERT INTO performance_data (
-                    woreda_name, department, entered_by, medical_service, rmh, pharmacy_logistic, 
-                    ultrasound, apts, community_pharmacy, dm_test, epi, child_health, tb_leprosy, 
-                    phem, cbhi, finance, plan, wt, full_emr, epi_modernization, zero_dose, 
-                    multi_sectoral, cash_program, hygiene_sanitation, hiv_sti, total_score, percentage_score
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    woreda_name, department, entered_by, ethiopian_year, quarter,
+                    medical_service, rmh, pharmacy_logistic, ultrasound, apts, community_pharmacy, 
+                    dm_test, epi, child_health, tb_leprosy, phem, cbhi, finance, plan, wt, 
+                    full_emr, epi_modernization, zero_dose, multi_sectoral, cash_program, 
+                    hygiene_sanitation, hiv_sti, total_score, percentage_score
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                woreda_name, department, entered_by, data.get('medical_service', 0), data.get('rmh', 0),
-                data.get('pharmacy_logistic', 0), data.get('ultrasound', 0), data.get('apts', 0),
-                data.get('community_pharmacy', 0), data.get('dm_test', 0), data.get('epi', 0),
-                data.get('child_health', 0), data.get('tb_leprosy', 0), data.get('phem', 0),
-                data.get('cbhi', 0), data.get('finance', 0), data.get('plan', 0), data.get('wt', 0),
+                woreda_name, department, entered_by, ethiopian_year, quarter,
+                data.get('medical_service', 0), data.get('rmh', 0), data.get('pharmacy_logistic', 0),
+                data.get('ultrasound', 0), data.get('apts', 0), data.get('community_pharmacy', 0),
+                data.get('dm_test', 0), data.get('epi', 0), data.get('child_health', 0),
+                data.get('tb_leprosy', 0), data.get('phem', 0), data.get('cbhi', 0),
+                data.get('finance', 0), data.get('plan', 0), data.get('wt', 0),
                 data.get('full_emr', 0), data.get('epi_modernization', 0), data.get('zero_dose', 0),
                 data.get('multi_sectoral', 0), data.get('cash_program', 0), data.get('hygiene_sanitation', 0),
                 data.get('hiv_sti', 0), total_score, percentage_score
@@ -376,20 +434,41 @@ def save_performance_data(woreda_name, department, data, entered_by):
         return False
 
 # Get performance data
-def get_performance_data():
+def get_performance_data(ethiopian_year=None, quarter=None):
     try:
         conn = sqlite3.connect('healthcare_performance.db', check_same_thread=False)
-        query = '''
+        
+        # Build query with optional filters
+        base_query = '''
             SELECT woreda_name, SUM(total_score) as total_score, 
                    AVG(percentage_score) as percentage_score
             FROM performance_data 
+        '''
+        
+        conditions = []
+        params = []
+        
+        if ethiopian_year:
+            conditions.append("ethiopian_year = ?")
+            params.append(ethiopian_year)
+            
+        if quarter:
+            conditions.append("quarter = ?")
+            params.append(quarter)
+        
+        if conditions:
+            base_query += " WHERE " + " AND ".join(conditions)
+        
+        base_query += '''
             GROUP BY woreda_name
             ORDER BY total_score DESC
         '''
-        df = pd.read_sql_query(query, conn)
+        
+        df = pd.read_sql_query(base_query, conn, params=params)
         conn.close()
         return df
-    except:
+    except Exception as e:
+        st.error(f"Error fetching performance data: {str(e)}")
         return pd.DataFrame()
 
 # Department Head Interface - COMPLETE REWRITE
@@ -519,6 +598,36 @@ def department_head_interface(department, username):
     
     st.success(f"✅ Found {len(user_columns)} data elements for {department}")
     
+    # Ethiopian Fiscal Year and Quarter Selection
+    st.markdown("---")
+    st.subheader("📅 Ethiopian Fiscal Year Selection")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Ethiopian Year Selection
+        ethiopian_years = get_ethiopian_year_options()
+        selected_year = st.selectbox(
+            "📆 Ethiopian Year",
+            options=ethiopian_years,
+            index=ethiopian_years.index(str(get_current_ethiopian_year())),
+            key="ethiopian_year"
+        )
+    
+    with col2:
+        # Quarter Selection
+        quarter_options = list(ETHIOPIAN_QUARTERS.keys())
+        selected_quarter = st.selectbox(
+            "📊 Quarter",
+            options=quarter_options,
+            index=quarter_options.index(get_current_ethiopian_quarter()),
+            key="ethiopian_quarter"
+        )
+    
+    # Show selected period info
+    quarter_info = ETHIOPIAN_QUARTERS[selected_quarter]
+    st.info(f"📅 **Selected Period:** Ethiopian Year {selected_year} - {selected_quarter} ({quarter_info['months']})")
+    
     # Dynamic form generation for each column
     for column_name in user_columns:
         column_info = COLUMN_INFO.get(column_name)
@@ -557,7 +666,7 @@ def department_head_interface(department, username):
             for i, (woreda, value) in enumerate(input_data.items()):
                 try:
                     data = {column_name: value}
-                    if save_performance_data(woreda, department, data, username):
+                    if save_performance_data(woreda, department, data, username, selected_year, selected_quarter):
                         success_count += 1
                     else:
                         error_count += 1
@@ -783,6 +892,39 @@ def super_admin_dashboard():
     st.markdown(f"**Logged in as:** {st.session_state.username}")
     st.success("🔓 Super Admin: Full access to all departments and data entry")
     
+    # Ethiopian Fiscal Year and Quarter Filtering
+    st.markdown("---")
+    st.subheader("📅 Filter by Ethiopian Fiscal Year")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Ethiopian Year Selection
+        ethiopian_years = get_ethiopian_year_options()
+        filter_year = st.selectbox(
+            "📆 Ethiopian Year",
+            options=ethiopian_years,
+            index=ethiopian_years.index(str(get_current_ethiopian_year())),
+            key="superadmin_filter_year"
+        )
+    
+    with col2:
+        # Quarter Selection
+        quarter_options = ["All"] + list(ETHIOPIAN_QUARTERS.keys())
+        filter_quarter = st.selectbox(
+            "📊 Quarter",
+            options=quarter_options,
+            index=quarter_options.index(get_current_ethiopian_quarter()),
+            key="superadmin_filter_quarter"
+        )
+    
+    # Show selected period info
+    if filter_quarter != "All":
+        quarter_info = ETHIOPIAN_QUARTERS[filter_quarter]
+        st.info(f"📅 **Filtering:** Ethiopian Year {filter_year} - {filter_quarter} ({quarter_info['months']})")
+    else:
+        st.info(f"📅 **Filtering:** All Quarters for Ethiopian Year {filter_year}")
+    
     # Department selector for Super Admin
     all_departments = list(DEPARTMENT_COLUMNS.keys()) if 'DEPARTMENT_COLUMNS' in globals() else [
         'EPI', 'TB & Leprosy', 'Child Health', 'PHEM', 'CBHI', 'Finance', 'Plan', 'WT',
@@ -798,16 +940,202 @@ def super_admin_dashboard():
         # Call department head interface with Super Admin access
         department_head_interface(selected_dept, st.session_state.username)
     
-    # Show admin dashboard
-    admin_dashboard()
+    # Show filtered admin dashboard
+    st.markdown("---")
+    st.subheader("📊 Performance Dashboard")
+    
+    # Get filtered performance data
+    quarter_param = None if filter_quarter == "All" else filter_quarter
+    rankings = get_performance_data(ethiopian_year=filter_year, quarter=quarter_param)
+    
+    if not rankings.empty:
+        # KPI Cards
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            avg_score = rankings['total_score'].mean()
+            st.metric("Average Score", f"{avg_score:.1f}/110")
+        with col2:
+            max_score = rankings['total_score'].max()
+            st.metric("Highest Score", f"{max_score:.1f}/110")
+        with col3:
+            total_woredas = len(rankings)
+            st.metric("Total Woredas", total_woredas)
+        
+        # Bar Chart
+        st.subheader("📈 Performance Rankings")
+        fig = px.bar(rankings, x='woreda_name', y='total_score', 
+                    title="Woreda Performance Rankings",
+                    labels={'total_score': 'Total Score', 'woreda_name': 'Woreda Name'})
+        fig.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Detailed Ranking Table - FIXED HTML DISPLAY
+        st.subheader("📋 Detailed Ranking Table")
+        
+        # Create ranking table with conditional formatting
+        ranking_data = []
+        for rank, row in enumerate(rankings.itertuples(), 1):
+            percentage = row.percentage_score
+            
+            # Apply conditional formatting with 3-color scheme
+            if percentage >= 80:
+                percentage_class = "high-percentage"
+                percentage_display = f"{percentage:.1f}% 🟢"
+            elif percentage >= 50:
+                percentage_class = "medium-percentage"
+                percentage_display = f"{percentage:.1f}% 🟡"
+            else:
+                percentage_class = "low-percentage"
+                percentage_display = f"{percentage:.1f}% 🔴"
+            
+            ranking_data.append({
+                'Rank': rank,
+                'Woreda Name': row.woreda_name,
+                'Total Score (Out of 110)': f"{row.total_score:.1f}",
+                'Final Percentage (%)': percentage_display,
+                'Color Class': percentage_class
+            })
+        
+        ranking_df = pd.DataFrame(ranking_data)
+        
+        # Apply custom CSS for conditional formatting
+        st.markdown("""
+        <style>
+        .high-percentage {
+            background-color: #d4edda !important;
+            color: #155724 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #28a745 !important;
+        }
+        .medium-percentage {
+            background-color: #fff3cd !important;
+            color: #856404 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #ffc107 !important;
+        }
+        .low-percentage {
+            background-color: #f8d7da !important;
+            color: #721c24 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #dc3545 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Display ranking table with color coding using HTML - PROPERLY FIXED
+        ranking_html = """
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 18px; font-weight: bold; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <thead>
+                <tr style="background: linear-gradient(135deg, #1f77b4, #1565c0); color: white; font-weight: 900;">
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Rank</th>
+                    <th style="padding: 15px; border: none; text-align: left; font-size: 20px;">Woreda Name</th>
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Total Score (Out of 110)</th>
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Final Percentage (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        for _, row in ranking_df.iterrows():
+            percentage = float(row['Final Percentage (%)'].replace('%', '').replace('**', '').replace('🟢', '').replace('🟡', '').replace('🔴', '').strip())
+            
+            # Apply color coding with better thresholds
+            if percentage >= 80:
+                bg_color = '#d4edda'
+                text_color = '#155724'
+                emoji = '🟢'
+                border_color = '#28a745'
+            elif percentage >= 50:
+                bg_color = '#fff3cd'
+                text_color = '#856404'
+                emoji = '🟡'
+                border_color = '#ffc107'
+            else:
+                bg_color = '#f8d7da'
+                text_color = '#721c24'
+                emoji = '🔴'
+                border_color = '#dc3545'
+            
+            ranking_html += f"""
+                <tr style="background-color: {'white' if _ % 2 == 0 else '#f8f9fa'}; transition: all 0.3s ease;">
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: center; color: #2c3e50;">{row['Rank']}</td>
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: left; color: #2c3e50;">{row['Woreda Name']}</td>
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: center; background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1565c0; font-size: 20px; border: 2px solid #1f77b4; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">{row['Total Score (Out of 110)']}</td>
+                    <td style="padding: 12px; border: none; font-weight: 900; text-align: center; background: {bg_color}; color: {text_color}; font-size: 20px; border: 2px solid {border_color}; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; overflow: hidden;">
+                        <span style="position: relative; z-index: 2;">{percentage:.1f}% {emoji}</span>
+                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);"></div>
+                    </td>
+                </tr>
+            """
+        
+        ranking_html += """
+            </tbody>
+        </table>
+        
+        <style>
+        table tr:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        </style>
+        """
+        
+        # PROPERLY RENDER HTML TABLE
+        st.markdown(ranking_html, unsafe_allow_html=True)
+    else:
+        st.info("No performance data available for the selected period. Please have department heads enter data first.")
 
 # Admin Dashboard
 def admin_dashboard():
-    st.title("📊 Admin Dashboard")
+    st.title("📊 Admin Dashboard (View Only)")
     st.markdown(f"**Logged in as:** {st.session_state.username}")
+    st.info("👁️ Admin users can view all data but cannot modify. Contact Super Admin for data entry.")
     
-    # Get performance data
-    rankings = get_performance_data()
+    # Ethiopian Fiscal Year and Quarter Filtering
+    st.markdown("---")
+    st.subheader("📅 Filter by Ethiopian Fiscal Year")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Ethiopian Year Selection
+        ethiopian_years = get_ethiopian_year_options()
+        filter_year = st.selectbox(
+            "📆 Ethiopian Year",
+            options=ethiopian_years,
+            index=ethiopian_years.index(str(get_current_ethiopian_year())),
+            key="admin_filter_year"
+        )
+    
+    with col2:
+        # Quarter Selection
+        quarter_options = ["All"] + list(ETHIOPIAN_QUARTERS.keys())
+        filter_quarter = st.selectbox(
+            "📊 Quarter",
+            options=quarter_options,
+            index=quarter_options.index(get_current_ethiopian_quarter()),
+            key="admin_filter_quarter"
+        )
+    
+    # Show selected period info
+    if filter_quarter != "All":
+        quarter_info = ETHIOPIAN_QUARTERS[filter_quarter]
+        st.info(f"📅 **Filtering:** Ethiopian Year {filter_year} - {filter_quarter} ({quarter_info['months']})")
+    else:
+        st.info(f"📅 **Filtering:** All Quarters for Ethiopian Year {filter_year}")
+    
+    # Get filtered performance data
+    quarter_param = None if filter_quarter == "All" else filter_quarter
+    rankings = get_performance_data(ethiopian_year=filter_year, quarter=quarter_param)
     
     if not rankings.empty:
         # KPI Cards
