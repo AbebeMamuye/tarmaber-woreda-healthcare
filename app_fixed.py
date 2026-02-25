@@ -431,9 +431,127 @@ def admin_dashboard():
         fig.update_layout(xaxis_tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
         
-        # Data Table
-        st.subheader("📋 Detailed Data")
-        st.dataframe(rankings, use_container_width=True)
+        # Detailed Ranking Table
+        st.subheader("📋 Detailed Ranking Table")
+        
+        # Create ranking table with conditional formatting
+        ranking_data = []
+        for rank, row in enumerate(rankings.itertuples(), 1):
+            percentage = row.percentage_score
+            
+            # Apply conditional formatting with 3-color scheme
+            if percentage >= 80:
+                percentage_class = "high-percentage"
+                percentage_display = f"{percentage:.1f}% 🟢"
+            elif percentage >= 50:
+                percentage_class = "medium-percentage"
+                percentage_display = f"{percentage:.1f}% 🟡"
+            else:
+                percentage_class = "low-percentage"
+                percentage_display = f"{percentage:.1f}% 🔴"
+            
+            ranking_data.append({
+                'Rank': rank,
+                'Woreda Name': row.woreda_name,
+                'Total Score (Out of 110)': f"{row.total_score:.1f}",
+                'Final Percentage (%)': percentage_display,
+                'Color Class': percentage_class
+            })
+        
+        ranking_df = pd.DataFrame(ranking_data)
+        
+        # Apply custom CSS for conditional formatting
+        st.markdown("""
+        <style>
+        .high-percentage {
+            background-color: #d4edda !important;
+            color: #155724 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #28a745 !important;
+        }
+        .medium-percentage {
+            background-color: #fff3cd !important;
+            color: #856404 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #ffc107 !important;
+        }
+        .low-percentage {
+            background-color: #f8d7da !important;
+            color: #721c24 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #dc3545 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Display ranking table with color coding using HTML
+        ranking_html = """
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 18px; font-weight: bold; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <thead>
+                <tr style="background: linear-gradient(135deg, #1f77b4, #1565c0); color: white; font-weight: 900;">
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Rank</th>
+                    <th style="padding: 15px; border: none; text-align: left; font-size: 20px;">Woreda Name</th>
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Total Score (Out of 110)</th>
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Final Percentage (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        for _, row in ranking_df.iterrows():
+            percentage = float(row['Final Percentage (%)'].replace('%', '').replace('**', '').replace('🟢', '').replace('🟡', '').replace('🔴', '').strip())
+            
+            # Apply color coding with better thresholds
+            if percentage >= 80:
+                bg_color = '#d4edda'
+                text_color = '#155724'
+                emoji = '🟢'
+                border_color = '#28a745'
+            elif percentage >= 50:
+                bg_color = '#fff3cd'
+                text_color = '#856404'
+                emoji = '🟡'
+                border_color = '#ffc107'
+            else:
+                bg_color = '#f8d7da'
+                text_color = '#721c24'
+                emoji = '🔴'
+                border_color = '#dc3545'
+            
+            ranking_html += f"""
+                <tr style="background-color: {'white' if _ % 2 == 0 else '#f8f9fa'}; transition: all 0.3s ease;">
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: center; color: #2c3e50;">{row['Rank']}</td>
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: left; color: #2c3e50;">{row['Woreda Name']}</td>
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: center; background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1565c0; font-size: 20px; border: 2px solid #1f77b4; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">{row['Total Score (Out of 110)']}</td>
+                    <td style="padding: 12px; border: none; font-weight: 900; text-align: center; background: {bg_color}; color: {text_color}; font-size: 20px; border: 2px solid {border_color}; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; overflow: hidden;">
+                        <span style="position: relative; z-index: 2;">{percentage:.1f}% {emoji}</span>
+                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);"></div>
+                    </td>
+                </tr>
+            """
+        
+        ranking_html += """
+            </tbody>
+        </table>
+        
+        <style>
+        table tr:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        </style>
+        """
+        
+        st.markdown(ranking_html, unsafe_allow_html=True)
     else:
         st.info("No performance data available. Please have department heads enter data first.")
 
