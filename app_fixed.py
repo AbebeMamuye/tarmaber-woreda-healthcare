@@ -388,6 +388,40 @@ def department_head_interface(department, username):
     st.markdown(f"**Department:** {department}")
     st.markdown(f"**Logged in as:** {username}")
     
+    # Debug information
+    st.info(f"🔍 Debug: User '{username}' assigned to department '{department}'")
+    
+    # Department name mapping for exact matching
+    department_mapping = {
+        # Exact department names from database
+        'EPI': 'EPI',
+        'TB & Leprosy': 'TB & Leprosy', 
+        'Child Health': 'Child Health',
+        'PHEM': 'PHEM',
+        'CBHI': 'CBHI',
+        'Finance': 'Finance',
+        'Plan': 'Plan',
+        'WT': 'WT',
+        'Medical Service': 'Medical Service',
+        'RMH': 'RMH',
+        'Pharmacy & Logistic': 'Pharmacy & Logistic',
+        'Ultrasound': 'Ultrasound',
+        'APTS': 'APTS',
+        'Community Pharmacy': 'Community Pharmacy',
+        'DM Test': 'DM Test',
+        'Full EMR': 'Full EMR',
+        'EPI Modernization': 'EPI Modernization',
+        'Zero Dose': 'Zero Dose',
+        'Multi-Sectoral': 'Multi-Sectoral',
+        'Cash Program': 'Cash Program',
+        'Hygiene & Sanitation': 'Hygiene & Sanitation',
+        'HIV/STI': 'HIV/STI'
+    }
+    
+    # Normalize department name for matching
+    normalized_dept = department_mapping.get(department, department)
+    st.info(f"🔍 Normalized department: '{normalized_dept}'")
+    
     # Column info for department
     column_info = {
         'EPI': {'epi': {'label': 'EPI', 'max': 5}},
@@ -414,8 +448,11 @@ def department_head_interface(department, username):
         'HIV/STI': {'hiv_sti': {'label': 'HIV/STI', 'max': 5}}  # Increased from 2.5 to 5
     }
     
-    if department in column_info:
-        col_info = column_info[department]
+    # Check if department exists in column_info
+    if normalized_dept in column_info:
+        st.success(f"✅ Department '{normalized_dept}' found in system!")
+        col_info = column_info[normalized_dept]
+        
         for key, info in col_info.items():
             st.subheader(f"📝 Enter {info['label']} Data")
             
@@ -436,7 +473,7 @@ def department_head_interface(department, username):
                 success_count = 0
                 for woreda, value in input_data.items():
                     data = {key: value}
-                    if save_performance_data(woreda, department, data, username):
+                    if save_performance_data(woreda, normalized_dept, data, username):
                         success_count += 1
                 
                 if success_count > 0:
@@ -445,6 +482,25 @@ def department_head_interface(department, username):
                     st.error("Failed to save data")
             
             st.markdown("---")
+    else:
+        st.error(f"❌ Department '{normalized_dept}' not found in available departments!")
+        st.warning("Available departments:")
+        for dept in column_info.keys():
+            st.write(f"- {dept}")
+        
+        # Show all department mappings for debugging
+        st.info("Department mappings from database:")
+        try:
+            conn = sqlite3.connect('healthcare_performance.db', check_same_thread=False)
+            cursor = conn.cursor()
+            cursor.execute('SELECT DISTINCT department FROM users WHERE role = "Department Head"')
+            departments = cursor.fetchall()
+            conn.close()
+            
+            for dept in departments:
+                st.write(f"- {dept[0]}")
+        except Exception as e:
+            st.error(f"Error fetching departments: {str(e)}")
     
     # Show current rankings
     st.subheader("📋 Current Rankings")
