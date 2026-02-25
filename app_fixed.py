@@ -7,6 +7,16 @@ from plotly.subplots import make_subplots
 import hashlib
 from datetime import datetime
 
+# Custom CSS to hide the Streamlit logo, header, and footer
+hide_st_style = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+</style>
+"""
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 # Custom CSS to hide Streamlit header, footer, and main menu branding
 st.markdown("""
 <style>
