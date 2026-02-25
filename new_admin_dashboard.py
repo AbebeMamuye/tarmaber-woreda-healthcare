@@ -163,7 +163,7 @@ def admin_dashboard():
         ranking_data.append({
             'Rank': rank,
             'Woreda Name': row.woreda_name,
-            'Total Score (Out of 110)': f"{row.total_score:.1f}",
+            'Total Score (Out of 105)': f"{row.total_score:.1f}",
             'Final Percentage (%)': percentage_display
         })
     
@@ -232,7 +232,7 @@ def admin_dashboard():
             dept_df,
             x='Woreda',
             y=[col for col in dept_columns if col in dept_labels.values()],
-            title="Departmental Contribution to Total Score (Out of 110)",
+            title="Departmental Contribution to Total Score (Out of 105)",
             labels={
                 col: dept_labels.get(col, col) 
                 for col in dept_columns 

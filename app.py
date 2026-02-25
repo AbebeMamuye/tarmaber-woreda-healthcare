@@ -420,7 +420,7 @@ def login_page():
     <div style="text-align: center; padding: 30px 0; background-color: #f8f9fa; border-top: 3px solid #1f77b4; margin-top: 40px;">
         <p style="color: #1f77b4; font-size: 18px; font-weight: bold; margin: 10px 0;"> 2026 All Rights Reserved</p>
         <p style="color: #333; font-size: 16px; margin: 8px 0;">Developed by <strong style="color: #1f77b4;">Abe_Technology</strong></p>
-        <p style="color: #333; font-size: 16px; margin: 8px 0;">Contact via Telegram: <strong style="color: #1f77b4;">AI_Technology</strong></p>
+        <p style="color: #333; font-size: 16px; margin: 8px 0;">Contact via Telegram: <a href="https://t.me/AI_Technology" target="_blank" style="color: #1f77b4; text-decoration: none; font-weight: bold;">@AI_Technology</a></p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1246,7 +1246,7 @@ def admin_dashboard():
     <div style="text-align: center; padding: 30px 0; background-color: #f8f9fa; border-top: 3px solid #1f77b4; margin-top: 40px;">
         <p style="color: #1f77b4; font-size: 18px; font-weight: bold; margin: 10px 0;">© 2026 All Rights Reserved</p>
         <p style="color: #333; font-size: 16px; margin: 8px 0;">Developed by <strong style="color: #1f77b4;">Abe_Technology</strong></p>
-        <p style="color: #333; font-size: 16px; margin: 8px 0;">Contact via Telegram: <strong style="color: #1f77b4;">AI_Technology</strong></p>
+        <p style="color: #333; font-size: 16px; margin: 8px 0;">Contact via Telegram: <a href="https://t.me/AI_Technology" target="_blank" style="color: #1f77b4; text-decoration: none; font-weight: bold;">@AI_Technology</a></p>
     </div>
     """, unsafe_allow_html=True)
 
