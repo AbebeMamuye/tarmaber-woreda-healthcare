@@ -392,177 +392,360 @@ def get_performance_data():
     except:
         return pd.DataFrame()
 
-# Department Head Interface
+# Department Head Interface - COMPLETE REWRITE
 def department_head_interface(department, username):
     st.title(f"📊 {department} Data Entry")
     st.markdown(f"**Department:** {department}")
     st.markdown(f"**Logged in as:** {username}")
     
-    # Check if user is Super Admin - they can see ALL forms
-    if st.session_state.role == 'Super Admin':
-        st.success("👑 Super Admin Access: You can enter data for ALL departments")
-        show_all_department_forms(username)
+    # Store user department in session state for filtering
+    st.session_state.user_dept = department
+    
+    # Define department to column mappings
+    DEPARTMENT_COLUMNS = {
+        'EPI': ['epi'],
+        'TB & Leprosy': ['tb_leprosy'],
+        'Child Health': ['child_health'],
+        'PHEM': ['phem'],
+        'CBHI': ['cbhi'],
+        'Finance': ['finance'],
+        'Plan': ['plan'],
+        'WT': ['wt'],
+        'Medical Service': ['medical_service'],
+        'RMH': ['rmh'],
+        'Pharmacy & Logistic': ['pharmacy_logistic'],
+        'Ultrasound': ['ultrasound'],
+        'APTS': ['apts'],
+        'Community Pharmacy': ['community_pharmacy'],
+        'DM Test': ['dm_test'],
+        'Full EMR': ['full_emr'],
+        'EPI Modernization': ['epi_modernization'],
+        'Zero Dose': ['zero_dose'],
+        'Multi-Sectoral': ['multi_sectoral'],
+        'Cash Program': ['cash_program'],
+        'Hygiene & Sanitation': ['hygiene_sanitation'],
+        'HIV/STI': ['hiv_sti']
+    }
+    
+    # Define column display info
+    COLUMN_INFO = {
+        'epi': {'label': 'EPI', 'max': 5},
+        'tb_leprosy': {'label': 'TB & Leprosy', 'max': 5},
+        'child_health': {'label': 'Child Health', 'max': 5},
+        'phem': {'label': 'PHEM', 'max': 5},
+        'cbhi': {'label': 'CBHI', 'max': 10},
+        'finance': {'label': 'Finance', 'max': 5},
+        'plan': {'label': 'Plan', 'max': 5},
+        'wt': {'label': 'WT', 'max': 5},
+        'medical_service': {'label': 'Medical Service', 'max': 15},
+        'rmh': {'label': 'RMH', 'max': 10},
+        'pharmacy_logistic': {'label': 'Pharmacy & Logistic', 'max': 5},
+        'ultrasound': {'label': 'Ultrasound', 'max': 2.5},
+        'apts': {'label': 'APTS', 'max': 2.5},
+        'community_pharmacy': {'label': 'Community Pharmacy', 'max': 2.5},
+        'dm_test': {'label': 'DM Test', 'max': 2.5},
+        'full_emr': {'label': 'Full EMR', 'max': 5},
+        'epi_modernization': {'label': 'EPI Modernization', 'max': 2.5},
+        'zero_dose': {'label': 'Zero Dose', 'max': 2.5},
+        'multi_sectoral': {'label': 'Multi-Sectoral', 'max': 2.5},
+        'cash_program': {'label': 'Cash Program', 'max': 2.5},
+        'hygiene_sanitation': {'label': 'Hygiene & Sanitation', 'max': 5},
+        'hiv_sti': {'label': 'HIV/STI', 'max': 5}
+    }
+    
+    # Get columns for this user's department
+    user_columns = DEPARTMENT_COLUMNS.get(department, [])
+    
+    if not user_columns:
+        st.error(f"❌ No valid data elements assigned to this user. Department '{department}' not found.")
+        st.warning("Available departments:")
+        for dept in DEPARTMENT_COLUMNS.keys():
+            st.write(f"- {dept}")
         return
     
-    # Debug information
-    st.info(f"🔍 Debug: User '{username}' assigned to department '{department}'")
+    st.success(f"✅ Found {len(user_columns)} data elements for {department}")
     
-    # Flexible department matching - search for columns containing department name
-    column_info = {
-        'EPI': {'epi': {'label': 'EPI', 'max': 5}},
-        'TB & Leprosy': {'tb_leprosy': {'label': 'TB & Leprosy', 'max': 5}},
-        'Child Health': {'child_health': {'label': 'Child Health', 'max': 5}},
-        'PHEM': {'phem': {'label': 'PHEM', 'max': 5}},
-        'CBHI': {'cbhi': {'label': 'CBHI', 'max': 10}},
-        'Finance': {'finance': {'label': 'Finance', 'max': 5}},
-        'Plan': {'plan': {'label': 'Plan', 'max': 5}},
-        'WT': {'wt': {'label': 'WT', 'max': 5}},
-        'Medical Service': {'medical_service': {'label': 'Medical Service', 'max': 15}},
-        'RMH': {'rmh': {'label': 'RMH', 'max': 10}},
-        'Pharmacy & Logistic': {'pharmacy_logistic': {'label': 'Pharmacy & Logistic', 'max': 5}},
-        'Ultrasound': {'ultrasound': {'label': 'Ultrasound', 'max': 2.5}},
-        'APTS': {'apts': {'label': 'APTS', 'max': 2.5}},
-        'Community Pharmacy': {'community_pharmacy': {'label': 'Community Pharmacy', 'max': 2.5}},
-        'DM Test': {'dm_test': {'label': 'DM Test', 'max': 2.5}},
-        'Full EMR': {'full_emr': {'label': 'Full EMR', 'max': 5}},
-        'EPI Modernization': {'epi_modernization': {'label': 'EPI Modernization', 'max': 2.5}},
-        'Zero Dose': {'zero_dose': {'label': 'Zero Dose', 'max': 2.5}},
-        'Multi-Sectoral': {'multi_sectoral': {'label': 'Multi-Sectoral', 'max': 2.5}},
-        'Cash Program': {'cash_program': {'label': 'Cash Program', 'max': 2.5}},
-        'Hygiene & Sanitation': {'hygiene_sanitation': {'label': 'Hygiene & Sanitation', 'max': 5}},
-        'HIV/STI': {'hiv_sti': {'label': 'HIV/STI', 'max': 5}}
-    }
-    
-    # Flexible matching - find departments that contain the user's department name
-    matched_departments = []
-    user_dept_lower = department.lower()
-    
-    for dept_name in column_info.keys():
-        if user_dept_lower in dept_name.lower() or dept_name.lower() in user_dept_lower:
-            matched_departments.append(dept_name)
-    
-    # Special case for exact matches
-    if department in column_info:
-        matched_departments = [department]
-    
-    if matched_departments:
-        st.success(f"✅ Found {len(matched_departments)} matching department(s): {', '.join(matched_departments)}")
-        
-        for matched_dept in matched_departments:
-            col_info = column_info[matched_dept]
-            for key, info in col_info.items():
-                st.subheader(f"📝 Enter {info['label']} Data")
-                
-                woredas = get_woredas()
-                input_data = {}
-                
-                for woreda in woredas:
-                    input_data[woreda] = st.number_input(
-                        f"{woreda} (Max: {info['max']})",
-                        min_value=0.0,
-                        max_value=float(info['max']),
-                        value=0.0,
-                        step=0.1,
-                        key=f"{key}_{woreda}"
-                    )
-                
-                if st.button(f"� Save {info['label']} Data", use_container_width=True):
-                    success_count = 0
-                    for woreda, value in input_data.items():
-                        data = {key: value}
-                        if save_performance_data(woreda, matched_dept, data, username):
-                            success_count += 1
-                    
-                    if success_count > 0:
-                        st.success(f"Saved {info['label']} data for {success_count} Woredas!")
-                    else:
-                        st.error("Failed to save data")
-                
-                st.markdown("---")
-    else:
-        st.error(f"❌ No matching departments found for '{department}'!")
-        st.warning("Available departments:")
-        for dept in column_info.keys():
-            st.write(f"- {dept}")
-        
-        # Show search results for debugging
-        st.info(f"🔍 Search results for '{department}':")
-        for dept in column_info.keys():
-            if user_dept_lower in dept_name.lower() or dept_name.lower() in user_dept_lower:
-                st.write(f"✅ Matched: {dept}")
-            else:
-                st.write(f"❌ No match: {dept}")
-
-# Function for Super Admin to see all forms
-def show_all_department_forms(username):
-    """Show all department forms for Super Admin"""
-    column_info = {
-        'EPI': {'epi': {'label': 'EPI', 'max': 5}},
-        'TB & Leprosy': {'tb_leprosy': {'label': 'TB & Leprosy', 'max': 5}},
-        'Child Health': {'child_health': {'label': 'Child Health', 'max': 5}},
-        'PHEM': {'phem': {'label': 'PHEM', 'max': 5}},
-        'CBHI': {'cbhi': {'label': 'CBHI', 'max': 10}},
-        'Finance': {'finance': {'label': 'Finance', 'max': 5}},
-        'Plan': {'plan': {'label': 'Plan', 'max': 5}},
-        'WT': {'wt': {'label': 'WT', 'max': 5}},
-        'Medical Service': {'medical_service': {'label': 'Medical Service', 'max': 15}},
-        'RMH': {'rmh': {'label': 'RMH', 'max': 10}},
-        'Pharmacy & Logistic': {'pharmacy_logistic': {'label': 'Pharmacy & Logistic', 'max': 5}},
-        'Ultrasound': {'ultrasound': {'label': 'Ultrasound', 'max': 2.5}},
-        'APTS': {'apts': {'label': 'APTS', 'max': 2.5}},
-        'Community Pharmacy': {'community_pharmacy': {'label': 'Community Pharmacy', 'max': 2.5}},
-        'DM Test': {'dm_test': {'label': 'DM Test', 'max': 2.5}},
-        'Full EMR': {'full_emr': {'label': 'Full EMR', 'max': 5}},
-        'EPI Modernization': {'epi_modernization': {'label': 'EPI Modernization', 'max': 2.5}},
-        'Zero Dose': {'zero_dose': {'label': 'Zero Dose', 'max': 2.5}},
-        'Multi-Sectoral': {'multi_sectoral': {'label': 'Multi-Sectoral', 'max': 2.5}},
-        'Cash Program': {'cash_program': {'label': 'Cash Program', 'max': 2.5}},
-        'Hygiene & Sanitation': {'hygiene_sanitation': {'label': 'Hygiene & Sanitation', 'max': 5}},
-        'HIV/STI': {'hiv_sti': {'label': 'HIV/STI', 'max': 5}}
-    }
-    
-    # Department selector for Super Admin
-    selected_dept = st.selectbox("🏥 Select Department to Enter Data:", list(column_info.keys()))
-    
-    if selected_dept:
-        col_info = column_info[selected_dept]
-        for key, info in col_info.items():
-            st.subheader(f"📝 Enter {info['label']} Data (Super Admin Access)")
+    # Dynamic form generation for each column
+    for column_name in user_columns:
+        column_info = COLUMN_INFO.get(column_name)
+        if not column_info:
+            continue
             
-            woredas = get_woredas()
-            input_data = {}
-            
-            for woreda in woredas:
+        st.subheader(f"📝 Enter {column_info['label']} Data")
+        
+        # Get all woredas
+        woredas = get_woredas()
+        input_data = {}
+        
+        # Create dynamic number inputs for all woredas
+        cols = st.columns(3)  # 3-column layout
+        for i, woreda in enumerate(woredas):
+            col = cols[i % 3]
+            with col:
                 input_data[woreda] = st.number_input(
-                    f"{woreda} (Max: {info['max']})",
+                    f"{woreda} (Max: {column_info['max']})",
                     min_value=0.0,
-                    max_value=float(info['max']),
+                    max_value=float(column_info['max']),
                     value=0.0,
                     step=0.1,
-                    key=f"admin_{key}_{woreda}"
+                    key=f"{column_name}_{woreda}_{username}"  # Unique key per user
                 )
+        
+        # Save button for this column
+        if st.button(f"💾 Save {column_info['label']} Data", use_container_width=True, key=f"save_{column_name}"):
+            success_count = 0
+            error_count = 0
             
-            if st.button(f"💾 Save {info['label']} Data", use_container_width=True, type="primary"):
-                success_count = 0
-                for woreda, value in input_data.items():
-                    data = {key: value}
-                    if save_performance_data(woreda, selected_dept, data, username):
+            # Progress tracking
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i, (woreda, value) in enumerate(input_data.items()):
+                try:
+                    data = {column_name: value}
+                    if save_performance_data(woreda, department, data, username):
                         success_count += 1
+                    else:
+                        error_count += 1
+                except Exception as e:
+                    error_count += 1
+                    st.error(f"Error saving {woreda}: {str(e)}")
                 
-                if success_count > 0:
-                    st.success(f"✅ Saved {info['label']} data for {success_count} Woredas!")
-                else:
-                    st.error("Failed to save data")
+                # Update progress
+                progress = (i + 1) / len(input_data)
+                progress_bar.progress(progress)
+                status_text.text(f"Saving... {i + 1}/{len(input_data)} Woredas")
             
-            st.markdown("---")
+            # Clear progress indicators
+            progress_bar.empty()
+            status_text.empty()
+            
+            # Show results
+            if success_count > 0:
+                st.success(f"✅ Successfully saved {column_info['label']} data for {success_count} Woredas!")
+            if error_count > 0:
+                st.error(f"❌ Failed to save data for {error_count} Woredas")
+        
+        st.markdown("---")
+    
+    # Show current data summary
+    show_department_data_summary(department)
+
+def show_department_data_summary(department):
+    """Show current data summary for the department"""
+    st.subheader("📋 Current Data Summary")
+    
+    try:
+        conn = sqlite3.connect('healthcare_performance.db', check_same_thread=False)
+        
+        # Get department-specific data
+        query = '''
+            SELECT woreda_name, total_score, percentage_score, entered_by, updated_at
+            FROM performance_data 
+            WHERE department = ? 
+            ORDER BY woreda_name
+        '''
+        df = pd.read_sql_query(query, conn, params=(department,))
+        
+        if not df.empty:
+            st.info(f"No data available for {department} yet.")
+        else:
+            st.write(f"📊 **{department} Data Summary:**")
+            st.dataframe(df, use_container_width=True)
+            
+            # Show statistics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                avg_score = df['total_score'].mean()
+                st.metric("Average Score", f"{avg_score:.2f}")
+            with col2:
+                max_score = df['total_score'].max()
+                st.metric("Highest Score", f"{max_score:.2f}")
+            with col3:
+                total_entries = len(df)
+                st.metric("Total Entries", total_entries)
+        
+        conn.close()
+    except Exception as e:
+        st.error(f"Error loading data summary: {str(e)}")
+
+# Admin Dashboard - VIEW ONLY
+def admin_dashboard():
+    st.title("📊 Admin Dashboard (View Only)")
+    st.markdown(f"**Logged in as:** {st.session_state.username}")
+    st.info("👁️ Admin users can view all data but cannot modify. Contact Super Admin for data entry.")
     
     # Show current rankings
-    st.subheader("📋 Current Rankings")
     rankings = get_performance_data()
     if not rankings.empty:
-        st.dataframe(rankings, use_container_width=True)
+        # KPI Cards
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            avg_score = rankings['total_score'].mean()
+            st.metric("Average Score", f"{avg_score:.1f}/110")
+        with col2:
+            max_score = rankings['total_score'].max()
+            st.metric("Highest Score", f"{max_score:.1f}/110")
+        with col3:
+            total_woredas = len(rankings)
+            st.metric("Total Woredas", total_woredas)
+        
+        # Bar Chart
+        st.subheader("📈 Performance Rankings")
+        fig = px.bar(rankings, x='woreda_name', y='total_score', 
+                    title="Woreda Performance Rankings",
+                    labels={'total_score': 'Total Score', 'woreda_name': 'Woreda Name'})
+        fig.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Detailed Ranking Table - FIXED HTML DISPLAY
+        st.subheader("📋 Detailed Ranking Table")
+        
+        # Create ranking table with conditional formatting
+        ranking_data = []
+        for rank, row in enumerate(rankings.itertuples(), 1):
+            percentage = row.percentage_score
+            
+            # Apply conditional formatting with 3-color scheme
+            if percentage >= 80:
+                percentage_class = "high-percentage"
+                percentage_display = f"{percentage:.1f}% 🟢"
+            elif percentage >= 50:
+                percentage_class = "medium-percentage"
+                percentage_display = f"{percentage:.1f}% 🟡"
+            else:
+                percentage_class = "low-percentage"
+                percentage_display = f"{percentage:.1f}% 🔴"
+            
+            ranking_data.append({
+                'Rank': rank,
+                'Woreda Name': row.woreda_name,
+                'Total Score (Out of 110)': f"{row.total_score:.1f}",
+                'Final Percentage (%)': percentage_display,
+                'Color Class': percentage_class
+            })
+        
+        ranking_df = pd.DataFrame(ranking_data)
+        
+        # Apply custom CSS for conditional formatting
+        st.markdown("""
+        <style>
+        .high-percentage {
+            background-color: #d4edda !important;
+            color: #155724 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #28a745 !important;
+        }
+        .medium-percentage {
+            background-color: #fff3cd !important;
+            color: #856404 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #ffc107 !important;
+        }
+        .low-percentage {
+            background-color: #f8d7da !important;
+            color: #721c24 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            text-align: center !important;
+            border: 2px solid #dc3545 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Display ranking table with color coding using HTML - PROPERLY FIXED
+        ranking_html = """
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 18px; font-weight: bold; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <thead>
+                <tr style="background: linear-gradient(135deg, #1f77b4, #1565c0); color: white; font-weight: 900;">
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Rank</th>
+                    <th style="padding: 15px; border: none; text-align: left; font-size: 20px;">Woreda Name</th>
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Total Score (Out of 110)</th>
+                    <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Final Percentage (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
+        for _, row in ranking_df.iterrows():
+            percentage = float(row['Final Percentage (%)'].replace('%', '').replace('**', '').replace('🟢', '').replace('🟡', '').replace('🔴', '').strip())
+            
+            # Apply color coding with better thresholds
+            if percentage >= 80:
+                bg_color = '#d4edda'
+                text_color = '#155724'
+                emoji = '🟢'
+                border_color = '#28a745'
+            elif percentage >= 50:
+                bg_color = '#fff3cd'
+                text_color = '#856404'
+                emoji = '🟡'
+                border_color = '#ffc107'
+            else:
+                bg_color = '#f8d7da'
+                text_color = '#721c24'
+                emoji = '🔴'
+                border_color = '#dc3545'
+            
+            ranking_html += f"""
+                <tr style="background-color: {'white' if _ % 2 == 0 else '#f8f9fa'}; transition: all 0.3s ease;">
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: center; color: #2c3e50;">{row['Rank']}</td>
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: left; color: #2c3e50;">{row['Woreda Name']}</td>
+                    <td style="padding: 12px; border: none; font-weight: bold; text-align: center; background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1565c0; font-size: 20px; border: 2px solid #1f77b4; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">{row['Total Score (Out of 110)']}</td>
+                    <td style="padding: 12px; border: none; font-weight: 900; text-align: center; background: {bg_color}; color: {text_color}; font-size: 20px; border: 2px solid {border_color}; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; overflow: hidden;">
+                        <span style="position: relative; z-index: 2;">{percentage:.1f}% {emoji}</span>
+                        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);"></div>
+                    </td>
+                </tr>
+            """
+        
+        ranking_html += """
+            </tbody>
+        </table>
+        
+        <style>
+        table tr:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        </style>
+        """
+        
+        # PROPERLY RENDER HTML TABLE
+        st.markdown(ranking_html, unsafe_allow_html=True)
     else:
-        st.info("No performance data available yet")
+        st.info("No performance data available. Please have department heads enter data first.")
+
+# Super Admin Dashboard - FULL ACCESS
+def super_admin_dashboard():
+    st.title("👑 Super Admin Dashboard")
+    st.markdown(f"**Logged in as:** {st.session_state.username}")
+    st.success("🔓 Super Admin: Full access to all departments and data entry")
+    
+    # Department selector for Super Admin
+    all_departments = list(DEPARTMENT_COLUMNS.keys()) if 'DEPARTMENT_COLUMNS' in globals() else [
+        'EPI', 'TB & Leprosy', 'Child Health', 'PHEM', 'CBHI', 'Finance', 'Plan', 'WT',
+        'Medical Service', 'RMH', 'Pharmacy & Logistic', 'Ultrasound', 'APTS', 'Community Pharmacy',
+        'DM Test', 'Full EMR', 'EPI Modernization', 'Zero Dose', 'Multi-Sectoral',
+        'Cash Program', 'Hygiene & Sanitation', 'HIV/STI'
+    ]
+    
+    selected_dept = st.selectbox("🏥 Select Department to Manage:", all_departments)
+    
+    if selected_dept:
+        st.info(f"Managing: {selected_dept}")
+        # Call department head interface with Super Admin access
+        department_head_interface(selected_dept, st.session_state.username)
+    
+    # Show admin dashboard
+    admin_dashboard()
 
 # Admin Dashboard
 def admin_dashboard():
