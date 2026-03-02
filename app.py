@@ -56,6 +56,9 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 [class*="stStatusWidget"],
 [class*="viewProfile"],
 [class*="container_gzau3"],
+/* Target buttons containing 'Manage app' text */
+button:has(div:contains("Manage app")),
+button:has(span:contains("Manage app")),
 a[href*="share.streamlit.io/user/"],
 #MainMenu, footer, header,
 #Tabs-tab-list { 
