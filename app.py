@@ -44,7 +44,10 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 [data-testid="stDecoration"],
 [data-testid="stSidebarHeader"],
 [data-testid="stSidebarNav"],
-#MainMenu, footer, header { display: none !important; visibility: hidden !important; }
+.viewerBadge_container__1QSob,
+.stDeployButton,
+[data-testid="stStatusWidget"],
+header, footer, #MainMenu { display: none !important; visibility: hidden !important; }
 
 /* ── App background ── */
 .stApp { background: #f0f4f8 !important; }
