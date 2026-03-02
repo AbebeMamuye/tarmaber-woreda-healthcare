@@ -1,1535 +1,1190 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
+import hashlib
+import os
+import base64
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import hashlib
 from datetime import datetime
 
-# Custom CSS to hide Streamlit header, footer, and main menu branding
-st.markdown("""
-<style>
-/* Hide Streamlit header */
-[data-testid="stHeader"] {
-    display: none;
-}
+# ─────────────────────────────────────────────────────────────────────────────
+# LOGO HELPER
+# ─────────────────────────────────────────────────────────────────────────────
+def get_logo_b64() -> str:
+    """Load the ICO logo and return a base64 data-URI string."""
+    logo_path = os.path.join(os.path.dirname(__file__), 'abetechhealt_logo.ico')
+    try:
+        with open(logo_path, 'rb') as f:
+            return 'data:image/x-icon;base64,' + base64.b64encode(f.read()).decode()
+    except Exception:
+        return ''
 
-/* Hide Streamlit footer */
-[data-testid="stFooter"] {
-    display: none;
-}
-
-/* Hide main menu branding */
-[data-testid="stSidebarHeader"] {
-    display: none;
-}
-
-/* Hide "Made with Streamlit" branding */
-[data-testid="stSidebarContent"] > div:first-child {
-    display: none;
-}
-
-/* Hide Streamlit's default sidebar elements */
-[data-testid="stSidebarNav"] {
-    display: none;
-}
-
-/* Custom sidebar header */
-.custom-sidebar-header {
-    background-color: #1f77b4;
-    color: white;
-    padding: 20px;
-    text-align: center;
-    border-radius: 10px;
-    margin-bottom: 20px;
-}
-
-/* Hide any remaining Streamlit branding */
-.streamlit-container .main .block-container {
-    padding-top: 2rem;
-}
-
-/* Remove Streamlit's default footer spacing */
-.main .block-container {
-    padding-bottom: 2rem;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Configure Streamlit for wide mode
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE CONFIG  (must be first Streamlit call)
+# ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Healthcare Performance Management System",
     page_icon="🏥",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Database initialization
-def init_db():
-    conn = sqlite3.connect('healthcare_performance.db')
-    cursor = conn.cursor()
-    
-    # Users table with updated structure
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL,
-            department TEXT,
-            full_name TEXT
-        )
-    ''')
-    
-    # Performance data table with user tracking
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS performance_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            woreda_name TEXT NOT NULL,
-            department TEXT NOT NULL,
-            entered_by TEXT NOT NULL,
-            medical_service REAL DEFAULT 0,
-            rmh REAL DEFAULT 0,
-            pharmacy_logistic REAL DEFAULT 0,
-            ultrasound REAL DEFAULT 0,
-            apts REAL DEFAULT 0,
-            community_pharmacy REAL DEFAULT 0,
-            dm_test REAL DEFAULT 0,
-            epi REAL DEFAULT 0,
-            child_health REAL DEFAULT 0,
-            tb_leprosy REAL DEFAULT 0,
-            phem REAL DEFAULT 0,
-            cbhi REAL DEFAULT 0,
-            finance REAL DEFAULT 0,
-            plan REAL DEFAULT 0,
-            wt REAL DEFAULT 0,
-            full_emr REAL DEFAULT 0,
-            epi_modernization REAL DEFAULT 0,
-            zero_dose REAL DEFAULT 0,
-            multi_sectoral REAL DEFAULT 0,
-            cash_program REAL DEFAULT 0,
-            hygiene_sanitation REAL DEFAULT 0,
-            hiv_sti REAL DEFAULT 0,
-            total_score REAL DEFAULT 0,
-            percentage_score REAL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Add hiv_sti column if it doesn't exist (for existing databases)
-    cursor.execute('PRAGMA table_info(performance_data)')
-    columns = [row[1] for row in cursor.fetchall()]
-    print(f"Current database columns: {columns}")
-    print(f"Number of columns: {len(columns)}")
-    
-    if 'hiv_sti' not in columns:
-        cursor.execute('''
-            ALTER TABLE performance_data ADD COLUMN hiv_sti REAL DEFAULT 0
-        ''')
-        print("Added hiv_sti column")
-    
-    # Remove old hiv and sti columns if they exist
-    if 'hiv' in columns:
-        try:
-            cursor.execute('ALTER TABLE performance_data DROP COLUMN hiv')
-            print("Dropped hiv column")
-        except:
-            print("Could not drop hiv column (SQLite limitation)")
-    if 'sti' in columns:
-        try:
-            cursor.execute('ALTER TABLE performance_data DROP COLUMN sti')
-            print("Dropped sti column")
-        except:
-            print("Could not drop sti column (SQLite limitation)")
-    
-    # Get final column count
-    cursor.execute('PRAGMA table_info(performance_data)')
-    final_columns = [row[1] for row in cursor.fetchall()]
-    print(f"Final database columns: {final_columns}")
-    print(f"Final number of columns: {len(final_columns)}")
-    
-    # Insert default users if not exists
-    cursor.execute("SELECT COUNT(*) FROM users")
-    if cursor.fetchone()[0] == 0:
-        # Updated users with same credentials as app_fixed.py
-        users_data = [
-            ("admin", hash_password("admin@2018"), "Admin", "Administration", "System Administrator"),
-            ("superadmin", hash_password("super@2024"), "Super Admin", "Administration", "Super Administrator"),
-            ("epi", hash_password("EPI@2024"), "Department Head", "EPI", "EPI Department"),
-            ("tb", hash_password("TB@2024"), "Department Head", "TB & Leprosy", "TB & Leprosy Department"),
-            ("child health", hash_password("Child Health@2024"), "Department Head", "Child Health", "Child Health Department"),
-            ("phem", hash_password("PHEM@2024"), "Department Head", "PHEM", "PHEM Department"),
-            ("cbhi", hash_password("CBHI@2024"), "Department Head", "CBHI", "CBHI Department"),
-            ("finance", hash_password("Finance@2024"), "Department Head", "Finance", "Finance Department"),
-            ("plan", hash_password("Plan@2024"), "Department Head", "Plan", "Plan Department"),
-            ("wt", hash_password("WT@2024"), "Department Head", "WT", "WT Department"),
-            ("medical", hash_password("Medical@2024"), "Department Head", "Medical Service", "Medical Service Department"),
-            ("rmh", hash_password("RMH@2024"), "Department Head", "RMH", "RMH Department"),
-            ("pharmacy", hash_password("Pharmacy@2024"), "Department Head", "Pharmacy & Logistic", "Pharmacy & Logistic Department"),
-            ("ultrasound", hash_password("Ultrasound@2024"), "Department Head", "Ultrasound", "Ultrasound Department"),
-            ("apts", hash_password("APTS@2024"), "Department Head", "APTS", "APTS Department"),
-            ("community_pharmacy", hash_password("CommunityPharmacy@2024"), "Department Head", "Community Pharmacy", "Community Pharmacy Department"),
-            ("dm_test", hash_password("DMTest@2024"), "Department Head", "DM Test", "DM Test Department"),
-            ("full_emr", hash_password("FullEMR@2024"), "Department Head", "Full EMR", "Full EMR Department"),
-            ("epi_modernization", hash_password("EPIModernization@2024"), "Department Head", "EPI Modernization", "EPI Modernization Department"),
-            ("zero_dose", hash_password("ZeroDose@2024"), "Department Head", "Zero Dose", "Zero Dose Department"),
-            ("multi_sectoral", hash_password("MultiSectoral@2024"), "Department Head", "Multi-Sectoral", "Multi-Sectoral Department"),
-            ("cash_program", hash_password("CashProgram@2024"), "Department Head", "Cash Program", "Cash Program Department"),
-            ("hygiene", hash_password("Hygiene@2024"), "Department Head", "Hygiene & Sanitation", "Hygiene & Sanitation Department"),
-            ("hiv_sti", hash_password("HIVSTI@2024"), "Department Head", "HIV/STI", "HIV/STI Department")
-        ]
-        
-        for username, password, role, full_name, data_elements in users_data:
-            cursor.execute('''
-                INSERT INTO users (username, password, role, department, full_name)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (username, password, role, full_name, data_elements))
-    else:
-        # Check if HIV/STI user exists and create if not
-        cursor.execute("SELECT COUNT(*) FROM users WHERE username = 'hiv_sti'")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute('''
-                INSERT INTO users (username, password, role, department, full_name)
-                VALUES (?, ?, ?, ?, ?)
-            ''', ("hiv_sti", hash_password("HIVSTI@2024"), "Department Head", "HIV/STI", "HIV/STI Department"))
-            print("HIV/STI user created manually")
-    
-    conn.commit()
-    conn.close()
+# ─────────────────────────────────────────────────────────────────────────────
+# GLOBAL CSS – hide ALL Streamlit branding & style the app
+# ─────────────────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 
-# Authentication functions
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+/* ── Hide Streamlit chrome ── */
+[data-testid="stHeader"],
+[data-testid="stFooter"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stSidebarHeader"],
+[data-testid="stSidebarNav"],
+#MainMenu, footer, header { display: none !important; visibility: hidden !important; }
 
-def verify_user(username, password):
-    conn = sqlite3.connect('healthcare_performance.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT role, department, full_name FROM users 
-        WHERE username = ? AND password = ?
-    ''', (username, hash_password(password)))
-    result = cursor.fetchone()
-    conn.close()
-    
-    # Debug: Print authentication attempt
-    print(f"Login attempt: username='{username}', password='{password}'")
-    print(f"Database result: {result}")
-    
-    return result
+/* ── App background ── */
+.stApp { background: #f0f4f8 !important; }
+.main .block-container { padding: 1.5rem 2rem 3rem 2rem !important; max-width: 100% !important; }
+html, body, [class*="css"] { font-weight: 600 !important; }
 
-def save_performance_data(woreda_name, department, data, entered_by):
-    """Save performance data to database"""
-    conn = sqlite3.connect('healthcare_performance.db')
-    cursor = conn.cursor()
-    
-    # Get actual database schema
-    cursor.execute('PRAGMA table_info(performance_data)')
-    db_columns = [row[1] for row in cursor.fetchall()]
-    print(f"Database columns: {db_columns}")
-    print(f"Number of columns: {len(db_columns)}")
-    
-    total_score, percentage_score = calculate_scores(data)
-    
-    # Check if record exists
-    cursor.execute('''
-        SELECT id FROM performance_data 
-        WHERE woreda_name = ? AND department = ? AND entered_by = ?
-    ''', (woreda_name, department, entered_by))
-    existing = cursor.fetchone()
-    
-    # Build dynamic SQL based on actual database columns
-    data_columns = [col for col in db_columns if col not in ['id', 'woreda_name', 'department', 'entered_by', 'total_score', 'percentage_score', 'created_at', 'updated_at']]
-    print(f"Data columns: {data_columns}")
-    
-    if existing:
-        # Dynamic UPDATE
-        set_clauses = [f"{col} = ?" for col in data_columns]
-        set_clauses.extend(["total_score = ?", "percentage_score = ?", "updated_at = CURRENT_TIMESTAMP"])
-        
-        update_sql = f'''
-            UPDATE performance_data SET 
-                {', '.join(set_clauses)}
-            WHERE woreda_name = ? AND department = ? AND entered_by = ?
-        '''
-        
-        # Build values list
-        values = [data.get(col, 0) for col in data_columns]
-        values.extend([total_score, percentage_score, woreda_name, department, entered_by])
-        
-        print(f"UPDATE SQL: {update_sql}")
-        print(f"Values count: {len(values)}")
-        
-        cursor.execute(update_sql, values)
-    else:
-        # Dynamic INSERT
-        all_columns = ['woreda_name', 'department', 'entered_by'] + data_columns + ['total_score', 'percentage_score']
-        placeholders = ['?' for _ in all_columns]
-        
-        insert_sql = f'''
-            INSERT INTO performance_data ({', '.join(all_columns)})
-            VALUES ({', '.join(placeholders)})
-        '''
-        
-        # Build values list
-        values = [woreda_name, department, entered_by]
-        values.extend([data.get(col, 0) for col in data_columns])
-        values.extend([total_score, percentage_score])
-        
-        print(f"INSERT SQL: {insert_sql}")
-        print(f"Values count: {len(values)}")
-        
-        cursor.execute(insert_sql, values)
-    
-    conn.commit()
-    conn.close()
+/* ── Sidebar ── */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0a1628 0%, #1a3a5c 100%) !important;
+    border-right: 3px solid #1f77b4;
+}
+[data-testid="stSidebar"] * { color: white !important; font-weight: 700 !important; }
+/* EXCEPT for inputs which need dark text */
+[data-testid="stSidebar"] div[data-baseweb="select"] * { color: #0a1628 !important; }
+[data-testid="stSidebar"] .stRadio > label { color: rgba(255,255,255,0.7) !important; font-size: 0.85rem !important; }
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.3) !important; border-width: 2px !important; }
 
-# Data management functions
-def get_woredas():
-    return [
-        'Angolela Tara Woreda', 'Ankober Woreda', 'Antsokia Gemiza Woreda', 'Asagirt Woreda',
-        'Bassona Worana', 'Berehet Woreda', 'Efratana Gidim Woreda', 'Ensaro Woreda',
-        'Gishe Woreda', 'Hagere Mariam Woreda', 'Kewot Woreda', 'Menz Gera Midir Woreda',
-        'Menz Keya Gebreal Woreda', 'Menz Lalo Midir Woreda', 'Menz Mama Midir Woreda',
-        'Merhabete Woreda', 'Mida Woremo Woreda', 'Minjar Shenkora Woreda', 'Mojana Wodera Woreda',
-        'Mortena Jiru Woreda', 'Saya Deberna Wayu Woreda', 'Shewarobit Town', 'Taremaber Woreda'
-    ]
+/* ── Buttons ── */
+.stButton > button {
+    background: linear-gradient(135deg, #1f77b4, #1565c0) !important;
+    color: white !important; border: 2px solid #0a1628 !important;
+    border-radius: 8px !important; font-weight: 800 !important;
+    padding: 0.6rem 1.5rem !important; transition: all 0.25s ease !important;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.stButton > button:hover {
+    background: linear-gradient(135deg, #1565c0, #0d47a1) !important;
+    transform: scale(1.02) !important;
+    box-shadow: 0 4px 14px rgba(21,101,192,0.4) !important;
+}
 
-def calculate_scores(data):
+/* ── Metric cards ── */
+[data-testid="stMetric"] {
+    background: white; border-radius: 12px;
+    padding: 1.2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+    border: 3px solid #1f77b4 !important;
+}
+[data-testid="stMetricValue"] { font-weight: 900 !important; color: #0a1628 !important; }
+
+/* ── Form inputs ── */
+.stTextInput > div > div > input, .stNumberInput > div > div > input {
+    border: 3px solid #0a1628 !important; border-radius: 8px !important;
+    font-size: 1.05rem !important; font-weight: 800 !important;
+    color: #0a1628 !important;
+}
+.stTextInput > div > div > input:focus, .stNumberInput > div > div > input:focus {
+    border-color: #1f77b4 !important; background: #f0f7ff !important;
+}
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] { gap: 10px; background: #cbd5e0; border-radius: 10px; padding: 6px; }
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px; padding: 10px 25px; font-weight: 800;
+    background: #edf2f7; color: #2d3748 !important;
+    border: 2px solid transparent !important;
+}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+    background: white !important; color: #1f77b4 !important; border-color: #1f77b4 !important;
+}
+
+/* ── DataFrames ── */
+.dataframe th { background: #1f77b4 !important; color: white !important; font-weight: 700 !important; }
+</style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONSTANTS
+# ─────────────────────────────────────────────────────────────────────────────
+WOREDAS = [
+    'Angolela Tara Woreda', 'Ankober Woreda', 'Antsokia Gemiza Woreda', 'Asagirt Woreda',
+    'Bassona Worana', 'Berehet Woreda', 'Efratana Gidim Woreda', 'Ensaro Woreda',
+    'Gishe Woreda', 'Hagere Mariam Woreda', 'Kewot Woreda', 'Menz Gera Midir Woreda',
+    'Menz Keya Gebreal Woreda', 'Menz Lalo Midir Woreda', 'Menz Mama Midir Woreda',
+    'Merhabete Woreda', 'Mida Woremo Woreda', 'Minjar Shenkora Woreda', 'Mojana Wodera Woreda',
+    'Mortena Jiru Woreda', 'Saya Deberna Wayu Woreda', 'Shewarobit Town', 'Taremaber Woreda',
+]
+
+INDICATORS = [
     # Medical & Pharmacy (37.5 pts)
-    medical_pharmacy = (
-        data.get('medical_service', 0) +
-        data.get('rmh', 0) +
-        data.get('pharmacy_logistic', 0) +
-        data.get('ultrasound', 0) +
-        data.get('apts', 0) +
-        data.get('community_pharmacy', 0) +
-        data.get('dm_test', 0)
-    )
-    
+    {'col': 'medical_service',    'label': 'Medical Service',      'max': 15.0, 'cat': 'Medical & Pharmacy'},
+    {'col': 'rmh',                'label': 'RMH',                  'max': 10.0, 'cat': 'Medical & Pharmacy'},
+    {'col': 'pharmacy_logistic',  'label': 'Pharmacy & Logistic',  'max':  5.0, 'cat': 'Medical & Pharmacy'},
+    {'col': 'ultrasound',         'label': 'Ultrasound',           'max':  2.5, 'cat': 'Medical & Pharmacy'},
+    {'col': 'apts',               'label': 'APTS',                 'max':  2.5, 'cat': 'Medical & Pharmacy'},
+    {'col': 'community_pharmacy', 'label': 'Community Pharmacy',   'max':  2.5, 'cat': 'Medical & Pharmacy'},
+    {'col': 'dm_test',            'label': 'DM Test',              'max':  2.5, 'cat': 'Medical & Pharmacy'},
     # Prevention & Disease (20 pts)
-    prevention_disease = (
-        data.get('epi', 0) +
-        data.get('child_health', 0) +
-        data.get('tb_leprosy', 0) +
-        data.get('phem', 0)
-    )
-    
+    {'col': 'epi',                'label': 'EPI',                  'max':  5.0, 'cat': 'Prevention & Disease'},
+    {'col': 'child_health',       'label': 'Child Health',         'max':  5.0, 'cat': 'Prevention & Disease'},
+    {'col': 'tb_leprosy',         'label': 'TB & Leprosy',         'max':  5.0, 'cat': 'Prevention & Disease'},
+    {'col': 'phem',               'label': 'PHEM',                 'max':  5.0, 'cat': 'Prevention & Disease'},
     # Admin & Finance (25 pts)
-    admin_finance = (
-        data.get('cbhi', 0) +
-        data.get('finance', 0) +
-        data.get('plan', 0) +
-        data.get('wt', 0)
-    )
-    
-    # Innovation & Quality (32.5 pts)
-    innovation_quality = (
-        data.get('full_emr', 0) +
-        data.get('epi_modernization', 0) +
-        data.get('zero_dose', 0) +
-        data.get('multi_sectoral', 0) +
-        data.get('cash_program', 0) +
-        data.get('hygiene_sanitation', 0) +
-        data.get('hiv_sti', 0)
-    )
-    
-    total_score = medical_pharmacy + prevention_disease + admin_finance + innovation_quality
-    percentage_score = (total_score / 105) * 100
-    
-    return total_score, percentage_score
+    {'col': 'cbhi',               'label': 'CBHI',                 'max': 10.0, 'cat': 'Admin & Finance'},
+    {'col': 'finance',            'label': 'Finance',              'max':  5.0, 'cat': 'Admin & Finance'},
+    {'col': 'plan',               'label': 'Plan',                 'max':  5.0, 'cat': 'Admin & Finance'},
+    {'col': 'wt',                 'label': 'WT',                   'max':  5.0, 'cat': 'Admin & Finance'},
+    # Innovation & Quality (22.5 pts)
+    {'col': 'full_emr',           'label': 'Full EMR',             'max':  5.0, 'cat': 'Innovation & Quality'},
+    {'col': 'epi_modernization',  'label': 'EPI Modernization',    'max':  5.0, 'cat': 'Innovation & Quality'},
+    {'col': 'zero_dose',          'label': 'Zero Dose',            'max':  5.0, 'cat': 'Innovation & Quality'},
+    {'col': 'multi_sectoral',     'label': 'Multi-Sectoral',       'max':  2.5, 'cat': 'Innovation & Quality'},
+    {'col': 'cash_program',       'label': 'Cash Program',         'max':  5.0, 'cat': 'Innovation & Quality'},
+    {'col': 'hygiene_sanitation', 'label': 'Hygiene & Sanitation', 'max':  5.0, 'cat': 'Innovation & Quality'},
+    {'col': 'hiv_sti',            'label': 'HIV/STI',              'max':  5.0, 'cat': 'Innovation & Quality'},
+]
 
-def get_performance_data():
-    conn = sqlite3.connect('healthcare_performance.db')
-    df = pd.read_sql_query('SELECT * FROM performance_data', conn)
-    conn.close()
+TOTAL_MAX = 110.0  # Normalized to 110 per user request
+INDICATOR_COUNT = len(INDICATORS)
+IND_BY_COL = {i['col']: i for i in INDICATORS}
+
+DATA_FILE = os.path.join(os.path.dirname(__file__), 'data', 'performance_data.xlsx')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTHENTICATION  (credentials kept in-code; only data goes to Excel)
+# ─────────────────────────────────────────────────────────────────────────────
+def _h(p): return hashlib.sha256(p.encode()).hexdigest()
+
+# Each Dept Head has: 'cols' = list of indicator column keys they can enter
+# IND_BY_COL maps column key → {col, label, max} from INDICATORS list
+USERS = {
+    # ── Admins ──────────────────────────────────────────────────────────────
+    'admin':          {'ph': _h('admin@2018'),          'role': 'Admin',       'cols': [], 'dept_name': 'Administration'},
+    'superadmin':     {'ph': _h('super@2024'),          'role': 'Super Admin', 'cols': [], 'dept_name': 'Administration'},
+    # ── Department Heads (username / password / columns they enter) ─────────
+    # 1. Medical Service → Medical Service, DM Test, WT
+    'medical':        {'ph': _h('Medical@2024'),        'role': 'Dept Head',
+                       'cols': ['medical_service', 'dm_test', 'wt'],
+                       'dept_name': 'Medical Service'},
+    # 2. Pharmacy & Logistic → Pharmacy & Logistic, APTS, Community Pharmacy, Ultrasound
+    'pharmacy':       {'ph': _h('Pharmacy@2024'),       'role': 'Dept Head',
+                       'cols': ['pharmacy_logistic', 'apts', 'community_pharmacy', 'ultrasound'],
+                       'dept_name': 'Pharmacy & Logistic'},
+    # 3. Child Health → EPI Modernization, Zero Dose, EPI, Child Health
+    'childhealth':    {'ph': _h('ChildHealth@2024'),    'role': 'Dept Head',
+                       'cols': ['epi_modernization', 'zero_dose', 'epi', 'child_health'],
+                       'dept_name': 'Child Health'},
+    # 4. HMIS → Plan, Full EMR
+    'hmis':           {'ph': _h('hmis@2024'),           'role': 'Dept Head',
+                       'cols': ['plan', 'full_emr'],
+                       'dept_name': 'HMIS'},
+    # 5. TB & Leprosy → TB & Leprosy
+    'tb':             {'ph': _h('TB@2024'),             'role': 'Dept Head',
+                       'cols': ['tb_leprosy'],
+                       'dept_name': 'TB & Leprosy'},
+    # 6. Finance → Finance, CBHI
+    'finance':        {'ph': _h('Finance@2024'),        'role': 'Dept Head',
+                       'cols': ['finance', 'cbhi'],
+                       'dept_name': 'Finance'},
+    # 7. Cash Program → Cash Program, Hygiene & Sanitation
+    'cash_program':   {'ph': _h('CashProgram@2024'),    'role': 'Dept Head',
+                       'cols': ['cash_program', 'hygiene_sanitation'],
+                       'dept_name': 'Cash Program'},
+    # 8. PHEM → PHEM
+    'phem':           {'ph': _h('PHEM@2024'),           'role': 'Dept Head',
+                       'cols': ['phem'],
+                       'dept_name': 'PHEM'},
+    # 9. Multi-Sectoral & HIV → Multi-Sectoral, HIV/STI
+    'multi_sectoral': {'ph': _h('MultiSectoral@2024'), 'role': 'Dept Head',
+                       'cols': ['multi_sectoral', 'hiv_sti'],
+                       'dept_name': 'Multi-Sectoral & HIV'},
+    # 10. RMH → RMH
+    'rmh':            {'ph': _h('rmh@2024'),            'role': 'Dept Head',
+                       'cols': ['rmh'],
+                       'dept_name': 'RMH'},
+}
+
+
+def verify_user(username: str, password: str):
+    u = USERS.get(username.strip().lower())
+    if u and u['ph'] == _h(password.strip()):
+        return u
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATA LAYER  (Excel / CSV)
+# ─────────────────────────────────────────────────────────────────────────────
+# QUARTER LOGIC
+QUARTERS = [
+    "Q1 (Hamle - Meskerem)",
+    "Q2 (Tikmt - Tahsas)",
+    "Q3 (Tir - Megabit)",
+    "Q4 (Miyazia - Sene)"
+]
+YEARS = ["2016", "2017", "2018", "2019", "2020", "2021"]
+
+def init_data_file():
+    os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
+    if not os.path.exists(DATA_FILE):
+        # Create an empty template with Year and Quarter
+        rows = []
+        for year in YEARS:
+            for q in QUARTERS:
+                for w in WOREDAS:
+                    row = {'woreda_name': w, 'year': year, 'quarter': q}
+                    for ind in INDICATORS:
+                        row[ind['col']] = 0.0
+                    row['total_score'] = 0.0
+                    row['percentage'] = 0.0
+                    row['last_updated'] = ''
+                    rows.append(row)
+        df = pd.DataFrame(rows)
+        save_data(df)
+
+
+def load_data() -> pd.DataFrame:
+    init_data_file()
+    df = pd.read_excel(DATA_FILE)
+    
+    # Clean string columns to ensure robust deduplication
+    df['woreda_name'] = df['woreda_name'].astype(str).str.strip()
+    df['year']        = df['year'].astype(str).str.strip()
+    df['quarter']     = df['quarter'].astype(str).str.strip()
+    
+    # Deduplicate early
+    df = df.drop_duplicates(subset=['woreda_name', 'year', 'quarter'])
+    
+    # Add any missing indicator columns
+    for ind in INDICATORS:
+        if ind['col'] not in df.columns:
+            df[ind['col']] = 0.0
+    for c in ('total_score', 'percentage', 'avg_indicator_perf', 'last_updated'):
+        if c not in df.columns:
+            df[c] = '' if c == 'last_updated' else 0.0
+    
+    # Ensure all 23 woredas exist for the periods already in the file
+    # This is a safety check in case the file was partially initialized or corrupted
+    periods = df[['year', 'quarter']].drop_duplicates()
+    for _, p in periods.iterrows():
+        existing_w = set(df[(df['year'] == p['year']) & (df['quarter'] == p['quarter'])]['woreda_name'])
+        missing_w = [w for w in WOREDAS if w not in existing_w]
+        if missing_w:
+            new_rows = []
+            for mw in missing_w:
+                nr = {'woreda_name': mw, 'year': p['year'], 'quarter': p['quarter']}
+                for ind in INDICATORS: nr[ind['col']] = 0.0
+                nr['total_score'] = 0.0
+                nr['percentage'] = 0.0
+                nr['avg_indicator_perf'] = 0.0
+                nr['last_updated'] = ''
+                new_rows.append(nr)
+            df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
+
+    df.fillna(0.0, inplace=True)
     return df
 
-def get_woreda_rankings():
-    conn = sqlite3.connect('healthcare_performance.db')
-    query = '''
-        SELECT 
-            woreda_name,
-            SUM(total_score) as total_score,
-            SUM(percentage_score) as percentage_score
-        FROM performance_data 
-        GROUP BY woreda_name 
-        ORDER BY percentage_score DESC
-    '''
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    df['rank'] = range(1, len(df) + 1)
+
+def recalculate(df: pd.DataFrame) -> pd.DataFrame:
+    cols = [i['col'] for i in INDICATORS if i['col'] in df.columns]
+    df['total_score'] = df[cols].sum(axis=1).round(2)
+    # Global percentage (Total / 110)
+    df['percentage'] = (df['total_score'] / TOTAL_MAX * 100).round(2)
+    
+    # Average Indicator Performance Percentage (Mean of Achievements)
+    perf_values = []
+    for i in INDICATORS:
+        # Calculate achievement rate for each indicator (Score / Max)
+        ach = (df[i['col']] / i['max'] * 100)
+        perf_values.append(ach)
+    
+    # Average across all indicator achievement rates
+    perf_matrix = pd.concat(perf_values, axis=1)
+    df['avg_indicator_perf'] = perf_matrix.mean(axis=1).round(2)
+    
     return df
 
-def get_woreda_detailed_data(woreda_name):
-    conn = sqlite3.connect('healthcare_performance.db')
-    query = '''
-        SELECT * FROM performance_data WHERE woreda_name = ?
-    '''
-    df = pd.read_sql_query(query, conn, params=(woreda_name,))
-    conn.close()
-    return df
 
-# UI Components
+def save_data(df: pd.DataFrame):
+    df = recalculate(df)
+    df.to_excel(DATA_FILE, index=False)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UI HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+def perf_band(pct):
+    """Return (hex_color, emoji, label) based on percentage."""
+    if pct >= 80:   return '#28a745', '🟢', 'High'
+    elif pct >= 60: return '#1f77b4', '🔵', 'Good'
+    elif pct >= 40: return '#ffc107', '🟡', 'Average'
+    else:           return '#dc3545', '🔴', 'Low'
+
+
+def page_header(title: str, subtitle: str = ''):
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#0a1628 0%,#1f77b4 100%);
+                padding:22px 30px;border-radius:14px;margin-bottom:24px;
+                box-shadow:0 6px 24px rgba(0,0,0,0.22);">
+        <h1 style="color:white;margin:0 0 4px 0;font-size:1.75rem;font-weight:800;">{title}</h1>
+        <p style="color:rgba(255,255,255,0.75);margin:0;font-size:0.9rem;">{subtitle}</p>
+    </div>""", unsafe_allow_html=True)
+
+
+def card(content_html: str, padding='20px'):
+    st.markdown(f"""
+    <div style="background:white;border-radius:12px;padding:{padding};
+                box-shadow:0 2px 12px rgba(0,0,0,0.07);margin-bottom:16px;">
+        {content_html}
+    </div>""", unsafe_allow_html=True)
+
+
+def footer():
+    st.markdown("""
+    <div style="text-align:center;padding:30px 0 10px;border-top:1px solid #e2e8f0;margin-top:40px;">
+        <p style="color:#a0aec0;font-size:0.82rem;margin:3px 0;">
+            © 2026 All Rights Reserved &nbsp;|&nbsp;
+            Developed by <strong style="color:#1f77b4;">Abe_Technology</strong>
+        </p>
+        <p style="color:#cbd5e0;font-size:0.78rem;margin:3px 0;">
+            <a href="https://t.me/AI_Technology" style="color:#1f77b4;text-decoration:none;">@AI_Technology</a>
+        </p>
+    </div>""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LOGIN PAGE
+# ─────────────────────────────────────────────────────────────────────────────
 def login_page():
-    # Add marquee at the very top
     st.markdown("""
     <style>
-    .marquee {
-        width: 100%;
-        overflow: hidden;
-        white-space: nowrap;
-        box-sizing: border-box;
-        background-color: #1f77b4;
-        padding: 10px 0;
-        margin: 0;
-    }
-    .marquee span {
-        display: inline-block;
-        padding-left: 100%;
-        animation: marquee 12s linear infinite;
-        font-size: 40px;
-        font-weight: bold;
-        color: white;
-    }
-    @keyframes marquee {
-        0% { transform: translate(0, 0); }
-        100% { transform: translate(-100%, 0); }
-    }
-    
-    /* Fix input field styling */
-    .stTextInput > div > div > input {
-        background-color: white !important;
-        border: 2px solid #1f77b4 !important;
-        border-radius: 8px !important;
-        padding: 12px !important;
-        font-size: 16px !important;
-        font-weight: bold !important;
-        color: black !important;
-    }
-    .stTextInput > div > div > input:focus {
-        border-color: #2e7cd6 !important;
-        box-shadow: 0 0 5px rgba(31, 123, 180, 0.5) !important;
-    }
-    </style>
-    <div class="marquee">
-        <span>Healthcare Performance Management System</span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Add professional header with white space
+    .stApp { background: linear-gradient(135deg,#0a1628 0%,#1a3a5c 50%,#0a1628 100%) !important; }
+    </style>""", unsafe_allow_html=True)
+
+    # Scrolling marquee — single text, 2× font size, bold, native <marquee>
     st.markdown("""
-    <div style="text-align: center; padding: 40px 0; background-color: white;">
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.subheader("🔐 Secure Login")
-        st.info("Please enter your credentials to access the system")
-        
-        # Use form to ensure proper input handling
-        with st.form("login_form", clear_on_submit=False):
-            username = st.text_input(
-                "Username", 
-                placeholder="Enter your username",
-                key="username_field",
-                help="Enter your department username"
-            )
-            password = st.text_input(
-                "Password", 
-                type="password", 
-                placeholder="Enter your password",
-                key="password_field",
-                help="Enter your password"
-            )
-            
-            submitted = st.form_submit_button("Login", use_container_width=True)
-            
-            if submitted:
-                # Validate inputs
-                if not username or not password:
-                    st.error("⚠️ Please enter both username and password")
-                    return
-                
-                # Trim whitespace
-                username = username.strip()
-                password = password.strip()
-                
-                # Debug logging
-                print(f"Login attempt - Username: '{username}', Password: '{password}'")
-                
-                # Authenticate user
-                result = verify_user(username, password)
-                if result:
-                    st.session_state.authenticated = True
-                    st.session_state.role = result[0]
-                    st.session_state.department = result[1]
-                    st.session_state.username = username
-                    st.success(f"Welcome {username}!")
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid username or password")
-    
-    # Add footer with enhanced visibility
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; padding: 30px 0; background-color: #f8f9fa; border-top: 3px solid #1f77b4; margin-top: 40px;">
-        <p style="color: #1f77b4; font-size: 18px; font-weight: bold; margin: 10px 0;"> 2026 All Rights Reserved</p>
-        <p style="color: #333; font-size: 16px; margin: 8px 0;">Developed by <strong style="color: #1f77b4;">Abe_Technology</strong></p>
-        <p style="color: #333; font-size: 16px; margin: 8px 0;">Contact via Telegram: <a href="https://t.me/AI_Technology" target="_blank" style="color: #1f77b4; text-decoration: none; font-weight: bold;">@AI_Technology</a></p>
+    <div style="background:rgba(255,255,255,0.10);border-radius:10px;
+                padding:12px 0;margin-bottom:32px;overflow:hidden;">
+        <marquee behavior="scroll" direction="left" scrollamount="8"
+                 style="color:white;font-weight:900;font-size:1.8rem;
+                        letter-spacing:0.5px;font-family:'Inter',sans-serif;">
+            &nbsp;&nbsp;&nbsp; Healthcare Performance Management System — North Shewa Zone Health  Department
+        </marquee>
     </div>
     """, unsafe_allow_html=True)
 
-def department_head_interface(department, username):
-    # Add custom CSS for styling
-    st.markdown("""
-    <style>
-    .stNumberInput > div > div > input {
-        font-weight: bold;
-        border: 2px solid #1f77b4;
-        border-radius: 8px;
-        padding: 8px;
-        font-size: 16px;
-    }
-    .stNumberInput > label {
-        font-weight: bold;
-        color: #2c3e50;
-        font-size: 14px;
-        background-color: #f0f2f6;
-        padding: 5px 10px;
-        border-radius: 5px;
-        border-left: 4px solid #1f77b4;
-    }
-    .data-section {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #dee2e6;
-        margin-bottom: 20px;
-    }
-    .woreda-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 20px 0;
-        background-color: white;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .woreda-table th {
-        background-color: #1f77b4;
-        color: white;
-        font-weight: bold;
-        text-align: left;
-        padding: 12px 15px;
-        font-size: 16px;
-    }
-    .woreda-table td {
-        padding: 10px 15px;
-        border-bottom: 1px solid #dee2e6;
-        font-size: 14px;
-    }
-    .woreda-table tr:nth-child(even) {
-        background-color: #f8f9fa;
-    }
-    .woreda-table tr:hover {
-        background-color: #e3f2fd;
-    }
-    .woreda-name {
-        font-weight: bold;
-        color: #2c3e50;
-        font-size: 14px;
-        min-width: 250px;
-    }
-    .input-field {
-        width: 120px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    st.title(f"📊 {department} Data Entry")
-    st.markdown(f"**Department:** {department}")
-    st.markdown(f"**Logged in as:** {username}")
-    
-    # Get user's data elements from database
-    conn = sqlite3.connect('healthcare_performance.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT full_name FROM users WHERE username = ?", (username,))
-    user_data = cursor.fetchone()
-    conn.close()
-    
-    # Parse data elements from full_name field
-    data_elements_str = user_data[0] if user_data and user_data[0] else ""
-    data_elements = data_elements_str.split(',') if data_elements_str else []
-    data_elements = [elem.strip() for elem in data_elements if elem.strip()]
-    
-    if not data_elements:
-        st.error("No data elements assigned to this user. Please contact administrator.")
-        return
-    
-    # Create dropdown for data element selection
-    column_info = {
-        'epi': {'label': 'EPI', 'max': 5},
-        'epi_modernization': {'label': 'EPI Modernization', 'max': 5},
-        'zero_dose': {'label': 'Zero Dose', 'max': 5},
-        'community_pharmacy': {'label': 'Community Pharmacy', 'max': 2.5},
-        'apts': {'label': 'APTS', 'max': 2.5},
-        'pharmacy_logistic': {'label': 'Pharmacy & Logistic', 'max': 5},
-        'cash_program': {'label': 'Cash Program', 'max': 5},
-        'hygiene_sanitation': {'label': 'Hygiene & Sanitation', 'max': 5},
-        'full_emr': {'label': 'Full EMR', 'max': 5},
-        'plan': {'label': 'Plan', 'max': 5},
-        'cbhi': {'label': 'CBHI', 'max': 10},
-        'finance': {'label': 'Finance', 'max': 5},
-        'medical_service': {'label': 'Medical Service', 'max': 15},
-        'rmh': {'label': 'RMH', 'max': 10},
-        'ultrasound': {'label': 'Ultrasound', 'max': 2.5},
-        'dm_test': {'label': 'DM Test', 'max': 2.5},
-        'child_health': {'label': 'Child Health', 'max': 5},
-        'tb_leprosy': {'label': 'TB & Leprosy', 'max': 5},
-        'phem': {'label': 'PHEM', 'max': 5},
-        'multi_sectoral': {'label': 'Multi-Sectoral', 'max': 2.5},
-        'wt': {'label': 'WT', 'max': 5},
-        'hiv_sti': {'label': 'HIV/STI', 'max': 5}
-    }
-    
-    # Filter valid data elements
-    valid_elements = []
-    element_labels = {}
-    for elem in data_elements:
-        if elem in column_info:
-            valid_elements.append(elem)
-            element_labels[elem] = column_info[elem]['label']
-    
-    if not valid_elements:
-        st.error("No valid data elements assigned to this user. Please contact administrator.")
-        return
-    
-    # Dropdown for selecting data element
-    selected_element = st.selectbox(
-        "🎯 Select Data Element to Edit:",
-        options=valid_elements,
-        format_func=lambda x: element_labels.get(x, x),
-        key="data_element_selector"
-    )
-    
-    if selected_element:
-        col_info = column_info[selected_element]
-        
-        st.markdown(f'<div class="data-section">', unsafe_allow_html=True)
-        st.subheader(f"📝 Edit {col_info['label']} Data")
-        
-        # Get all existing data for this department
-        conn = sqlite3.connect('healthcare_performance.db')
-        query = '''
-            SELECT woreda_name, department, entered_by,
-                   medical_service, rmh, pharmacy_logistic, ultrasound, apts, community_pharmacy, dm_test,
-                   epi, child_health, tb_leprosy, phem, cbhi, finance, plan, wt,
-                   full_emr, epi_modernization, zero_dose, multi_sectoral, cash_program,
-                   hygiene_sanitation, hiv_sti, total_score, percentage_score
-            FROM performance_data 
-            WHERE department = ?
-            ORDER BY woreda_name
-        '''
-        existing_data = pd.read_sql_query(query, conn, params=(department,))
-        conn.close()
-        
-        # Create editable table
-        woredas = get_woredas()
-        
-        # Initialize data structure
-        data_dict = {}
-        for woreda in woredas:
-            data_dict[woreda] = 0.0
-        
-        # Load existing values
-        if not existing_data.empty:
-            for _, row in existing_data.iterrows():
-                if row['woreda_name'] in data_dict:
-                    data_dict[row['woreda_name']] = row[selected_element] or 0.0
-        
-        # Create input fields for each woreda in table layout
-        st.write(f"**Enter {col_info['label']} values for each Woreda:**")
-        
-        input_data = {}
-        
-        # Create table with embedded input fields
+    _, col, _ = st.columns([1, 1.1, 1])
+    with col:
+        logo_b64 = get_logo_b64()
+        logo_html = (
+            f'<img src="{logo_b64}" style="width:90px;height:90px;object-fit:contain;'
+            f'border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.18);margin-bottom:12px;" />'
+            if logo_b64 else '<div style="font-size:3.2rem;">🏥</div>'
+        )
         st.markdown(f"""
-        <style>
-        .woreda-input-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            background-color: white;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }}
-        .woreda-input-table th {{
-            background-color: #1f77b4;
-            color: white;
-            font-weight: bold;
-            text-align: left;
-            padding: 12px 15px;
-            font-size: 16px;
-        }}
-        .woreda-input-table td {{
-            padding: 10px 15px;
-            border-bottom: 1px solid #dee2e6;
-            font-size: 14px;
-            vertical-align: middle;
-        }}
-        .woreda-input-table tr:nth-child(even) {{
-            background-color: #f8f9fa;
-        }}
-        .woreda-input-table tr:hover {{
-            background-color: #e3f2fd;
-        }}
-        .woreda-name-cell {{
-            font-weight: bold;
-            color: #2c3e50;
-            font-size: 14px;
-            min-width: 250px;
-        }}
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Table header
-        st.markdown(f"""
-        <table class="woreda-input-table">
-            <thead>
-                <tr>
-                    <th>🏘️ Woreda Name</th>
-                    <th>{col_info['label']} Value (Max: {col_info['max']})</th>
-                </tr>
-            </thead>
-            <tbody>
-        </table>
-        """, unsafe_allow_html=True)
-        
-        # Create rows with input fields
-        for i, woreda in enumerate(woredas):
-            max_value = float(col_info['max'])
-            
-            # Create columns for each row
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                st.markdown(f"""
-                <div style="padding: 8px 15px; border-bottom: 1px solid #dee2e6; background-color: {'#f8f9fa' if i % 2 == 1 else 'white'};">
-                    <strong>🏘️ {woreda}</strong>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                input_data[woreda] = st.number_input(
-                    f"Value",
-                    min_value=0.0,
-                    max_value=max_value,
-                    value=data_dict[woreda],
-                    step=0.5,
-                    key=f"{woreda}_{selected_element}",
-                    label_visibility="collapsed"
-                )
-        
-        st.markdown("---")
-        
-        # Calculate and display sum
-        total_sum = sum(input_data.values())
-        st.metric(f"📊 {col_info['label']} Total", f"{total_sum:.2f}")
-        
-        # Save button
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button(f"💾 Save {col_info['label']} Data", use_container_width=True, type="primary"):
-                # Save each woreda's data with explicit parameter names
-                for woreda, value in input_data.items():
-                    data = {selected_element: value}
-                    try:
-                        save_performance_data(woreda, department, data, username)
-                    except Exception as e:
-                        st.error(f"Error saving data for {woreda}: {str(e)}")
-                        continue
-                
-                st.success(f"All {col_info['label']} data saved successfully!")
-                st.balloons()
-        
-        # Display current data table
-        st.markdown("---")
-        st.subheader(f"📋 {col_info['label']} Data Summary")
-        
-        # Create summary table
-        summary_data = []
-        for woreda in woredas:
-            summary_data.append({
-                'Woreda': woreda,
-                'Value': input_data[woreda],
-                'Entered By': username
-            })
-        
-        # Add total row
-        summary_data.append({
-            'Woreda': 'ZONAL',
-            'Value': total_sum,
-            'Entered By': 'System'
-        })
-        
-        summary_df = pd.DataFrame(summary_data)
-        st.dataframe(summary_df, use_container_width=True, hide_index=True)
-        
-        # Show department-specific statistics
-        st.markdown("---")
-        st.subheader("📈 Department Statistics")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Woredas", len(woredas))
-        with col2:
-            non_zero_count = sum(1 for v in input_data.values() if v > 0)
-            st.metric("Woredas with Data", non_zero_count)
-        with col3:
-            avg_value = total_sum / len(woredas) if len(woredas) > 0 else 0
-            st.metric("Average Value", f"{avg_value:.2f}")
-        
-        # Show other available data elements
-        if len(valid_elements) > 1:
-            st.markdown("---")
-            st.info(f"📌 You have access to {len(valid_elements)} data elements: {', '.join([element_labels[elem] for elem in valid_elements])}")
-            st.info("💡 Use the dropdown above to switch between data elements.")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-
-def admin_dashboard():
-    # Add marquee at the very top
-    st.markdown("""
-    <style>
-    .marquee {
-        width: 100%;
-        overflow: hidden;
-        white-space: nowrap;
-        box-sizing: border-box;
-        background-color: #1f77b4;
-        padding: 10px 0;
-        margin: 0;
-    }
-    .marquee span {
-        display: inline-block;
-        padding-left: 100%;
-        animation: marquee 12s linear infinite;
-        font-size: 40px;
-        font-weight: bold;
-        color: white;
-    }
-    @keyframes marquee {
-        0% { transform: translate(0, 0); }
-        100% { transform: translate(-100%, 0); }
-    }
-    </style>
-    <div class="marquee">
-        <span>Healthcare Performance Management System</span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Add professional white space at top center
-    st.markdown("""
-    <div style="text-align: center; padding: 30px 0; background-color: white;">
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Dashboard title
-    st.title("📈 Admin Dashboard - Healthcare Performance Rankings")
-    
-    # Get rankings
-    rankings = get_woreda_rankings()
-    
-    # KPI Cards
-    col1, col2, col3 = st.columns(3)
-    if not rankings.empty:
-        with col1:
-            avg_score = rankings['percentage_score'].mean()
-            st.metric("Average Zone Score", f"{avg_score:.2f}%")
-        
-        with col2:
-            top_woreda = rankings.iloc[0]
-            st.metric("Top Performing Woreda", f"{top_woreda['woreda_name']} ({top_woreda['percentage_score']:.2f}%)")
-        
-        with col3:
-            least_woreda = rankings.iloc[-1]
-            st.metric("Least Performing Woreda", f"{least_woreda['woreda_name']} ({least_woreda['percentage_score']:.2f}%)")
-    else:
-        with col1:
-            st.metric("Average Zone Score", "No Data")
-        with col2:
-            st.metric("Top Performing Woreda", "No Data")
-        with col3:
-            st.metric("Least Performing Woreda", "No Data")
-    
-    st.markdown("---")
-    
-    # Rankings Bar Chart with Enhanced Features
-    st.subheader("📊 Woreda Performance Rankings")
-    if not rankings.empty:
-        # Add color coding based on performance
-        def get_color(score):
-            if score >= 80:
-                return '#28a745'  # Green for high performance
-            elif score >= 50:
-                return '#ffc107'  # Yellow for average performance
-            else:
-                return '#dc3545'  # Red for low performance
-        
-        # Apply color coding
-        rankings['bar_color'] = rankings['percentage_score'].apply(get_color)
-        
-        # Create enhanced bar chart
-        fig = px.bar(
-            rankings, 
-            x='percentage_score', 
-            y='woreda_name',
-            orientation='h',
-            title="<b style='font-size: 20px;'>Woredas Ranked by Performance Score</b>",
-            labels={'percentage_score': 'Score (%)', 'woreda_name': 'Woreda'},
-            color='bar_color',
-            color_discrete_map='identity',
-            text='percentage_score',  # Add data labels
-            text_auto='.1f',  # Format to 1 decimal place
-        )
-        
-        # Update layout for better visibility
-        fig.update_layout(
-            height=800,  # Increased height for better readability
-            width=1200,  # Increased width
-            xaxis=dict(
-                title="<b>Score (%)</b>",
-                range=[0, 100],  # Set X-axis range from 0 to 100%
-                title_font=dict(size=14, family='Arial, sans-serif'),
-                tickfont=dict(size=12, family='Arial, sans-serif')
-            ),
-            yaxis=dict(
-                title="<b>Woreda</b>",
-                title_font=dict(size=14, family='Arial, sans-serif'),
-                tickfont=dict(size=11, family='Arial, sans-serif'),  # Larger font for Woreda names
-                categoryorder='total ascending'  # Keep ranking order
-            ),
-            title_font=dict(size=20, family='Arial, sans-serif'),
-            showlegend=False,  # Hide legend since colors are self-explanatory
-            margin=dict(l=20, r=20, t=60, b=20)  # Adjust margins
-        )
-        
-        # Update text labels positioning
-        fig.update_traces(
-            texttemplate='%{text:.1f}%',  # Show percentage with % symbol
-            textposition='outside',  # Position labels outside bars
-            textfont=dict(size=10, family='Arial, sans-serif', color='black'),
-            insidetextfont=dict(color='white'),
-            marker_line_width=1,
-            marker_line_color='black'
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Add color legend
-        st.markdown("""
-        <div style="display: flex; justify-content: center; gap: 30px; margin: 20px 0;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 20px; height: 20px; background-color: #28a745; border: 1px solid black;"></div>
-                <span style="font-weight: bold;">High Performance (≥80%)</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 20px; height: 20px; background-color: #ffc107; border: 1px solid black;"></div>
-                <span style="font-weight: bold;">Average Performance (50-79%)</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 20px; height: 20px; background-color: #dc3545; border: 1px solid black;"></div>
-                <span style="font-weight: bold;">Low Performance (<50%)</span>
+        <div style="background:rgba(255,255,255,0.97);border-radius:20px;padding:42px 38px;
+                    box-shadow:0 24px 64px rgba(0,0,0,0.35);">
+            <div style="text-align:center;margin-bottom:28px;">
+                {logo_html}
+                <h2 style="color:#0a1628;margin:10px 0 4px;font-weight:800;font-size:1.6rem;">Welcome Back</h2>
+                <p style="color:#718096;margin:0;font-size:0.88rem;">Healthcare Performance Management System</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
-    
-    # Data Values Summary
-    st.subheader("📊 Data Summary")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        avg_score = rankings['total_score'].mean()
-        st.metric("Average Score", f"{avg_score:.1f}/105")
-    with col2:
-        max_score = rankings['total_score'].max()
-        st.metric("Highest Score", f"{max_score:.1f}/105")
-    with col3:
-        total_woredas = len(rankings)
-        st.metric("Total Woredas", total_woredas)
-    
-    # Ranking Table with Conditional Formatting
-    st.subheader("📋 Detailed Ranking Table")
-    
-    # Create ranking table with conditional formatting
-    ranking_data = []
-    for rank, row in enumerate(rankings.itertuples(), 1):
-        percentage = row.percentage_score
+
+        with st.form("login_form", clear_on_submit=False):
+            username = st.text_input("👤 Username", placeholder="Enter your username")
+            password = st.text_input("🔒 Password", type="password", placeholder="Enter your password")
+            submitted = st.form_submit_button("🔐  Sign In", use_container_width=True)
+
+        if submitted:
+            if not username or not password:
+                st.error("⚠️ Please enter both username and password.")
+            else:
+                user = verify_user(username, password)
+                if user:
+                    st.session_state.authenticated = True
+                    st.session_state.username  = username.strip().lower()
+                    st.session_state.role      = user['role']
+                    st.session_state.u_cols    = user.get('cols', [])      # list of col keys
+                    st.session_state.u_dept    = user.get('dept_name', '')
+                    st.session_state.view      = 'Data Entry' if user['role'] == 'Dept Head' else 'Dashboard'
+                    # Set defaults if not present
+                    if 'filter_year' not in st.session_state:
+                         st.session_state.filter_year = "2018"
+                    if 'filter_quarter' not in st.session_state:
+                         st.session_state.filter_quarter = QUARTERS[2] # Q3
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid username or password.")
+
+    st.markdown("""
+    <div style="text-align:center;padding-top:28px;">
+        <p style="color:rgba(255,255,255,0.5);font-size:0.82rem;margin:3px 0;">
+            © 2026 All Rights Reserved &nbsp;|&nbsp;
+            Developed by <strong style="color:#64b5f6;">Abe_Technology</strong> &nbsp;|&nbsp;
+            <a href="https://t.me/AI_Technology" style="color:#64b5f6;text-decoration:none;">@AI_Technology</a>
+        </p>
+    </div>""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SIDEBAR
+# ─────────────────────────────────────────────────────────────────────────────
+def render_sidebar():
+    role     = st.session_state.role
+    username = st.session_state.username
+
+    role_color = {'Admin': '#1f77b4', 'Super Admin': '#7c3aed', 'Dept Head': '#28a745'}.get(role, '#718096')
+
+    with st.sidebar:
+        st.markdown(f"""
+        <div style="background:rgba(255,255,255,0.1);border-radius:12px;padding:16px;
+                    margin-bottom:18px;border:1px solid rgba(255,255,255,0.18);">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:46px;height:46px;border-radius:50%;background:{role_color};
+                            display:flex;align-items:center;justify-content:center;
+                            font-size:1.3rem;font-weight:800;color:white;flex-shrink:0;">
+                    {username[0].upper()}
+                </div>
+                <div>
+                    <p style="margin:0;font-weight:700;color:white;font-size:0.95rem;">{username}</p>
+                    <p style="margin:2px 0 0;font-size:0.76rem;color:rgba(255,255,255,0.65);">{role}</p>
+                </div>
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        if role in ['Admin', 'Super Admin']:
+            st.markdown("""
+            <div style="color:rgba(255,255,255,0.6);font-size:0.7rem;font-weight:700;
+                        text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">
+                📅 Global Filters
+            </div>""", unsafe_allow_html=True)
+            
+            y_idx = YEARS.index(st.session_state.filter_year) if st.session_state.filter_year in YEARS else 2
+            st.session_state.filter_year = st.selectbox("Year (EFY)", YEARS, index=y_idx)
+            
+            q_idx = QUARTERS.index(st.session_state.filter_quarter) if st.session_state.filter_quarter in QUARTERS else 2
+            st.session_state.filter_quarter = st.selectbox("Quarter", QUARTERS, index=q_idx)
+            
+            st.markdown("---")
+
+        if role == 'Dept Head':
+            dept_name = st.session_state.u_dept
+            cols      = st.session_state.u_cols
+            elements  = ', '.join(IND_BY_COL[c]['label'] for c in cols if c in IND_BY_COL)
+            st.markdown(f"""
+            <div style="background:rgba(40,167,69,0.18);border:1px solid rgba(40,167,69,0.4);
+                        border-radius:8px;padding:12px 14px;margin-bottom:14px;">
+                <p style="color:rgba(255,255,255,0.9);margin:0 0 3px;font-size:0.82rem;font-weight:600;">
+                    📊 Department
+                </p>
+                <p style="color:white;margin:0;font-weight:700;font-size:0.95rem;">{dept_name}</p>
+                <p style="color:rgba(255,255,255,0.55);margin:4px 0 0;font-size:0.74rem;">
+                    {len(cols)} data element(s): {elements}
+                </p>
+            </div>""", unsafe_allow_html=True)
+            st.session_state.view = 'Data Entry'
+
+        elif role == 'Admin':
+            st.session_state.view = 'Dashboard' # Always dashboard
+
+        elif role == 'Super Admin':
+            nav_opts = ['Dashboard', 'Edit Data']
+            cur = st.session_state.get('view', 'Dashboard')
+            idx = nav_opts.index(cur) if cur in nav_opts else 0
+            chosen = st.radio("📌 Navigation", nav_opts, index=idx)
+            st.session_state.view = chosen
+
+        st.markdown("---")
+        if st.button("🚪 Logout", use_container_width=True):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.rerun()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEPARTMENT HEAD — Data Entry
+# ─────────────────────────────────────────────────────────────────────────────
+def dept_head_view():
+    """Data entry view for Dept Head — supports 1 or many data elements via dropdown."""
+    cols      = st.session_state.u_cols      # list of column keys
+    dept_name = st.session_state.u_dept
+    username  = st.session_state.username
+
+    page_header(f"📝 {dept_name} — Data Entry",
+                f"Logged in as: {username}  |  Department: {dept_name}")
+
+    df = load_data()
+
+    # ── PERIOD SELECTION ──────────────────────────────────────────────────────
+    st.markdown("""
+    <div style="background:#f8fafc; border:2px solid #1f77b4; border-radius:12px; padding:15px; margin-bottom:20px;">
+        <p style="color:#1a3a5c; font-weight:800; font-size:0.9rem; margin-bottom:10px; text-transform:uppercase;">
+            📅 Select Evaluation Period:
+        </p>
+    </div>""", unsafe_allow_html=True)
+    per_c1, per_c2 = st.columns(2)
+    with per_c1:
+        y_idx = YEARS.index(st.session_state.get('filter_year', "2018")) if st.session_state.get('filter_year') in YEARS else 2
+        sel_year = st.selectbox("Year (EFY)", YEARS, index=y_idx, key="entry_year")
+    with per_c2:
+        q_idx = QUARTERS.index(st.session_state.get('filter_quarter', QUARTERS[2])) if st.session_state.get('filter_quarter') in QUARTERS else 2
+        sel_q = st.selectbox("Quarter", QUARTERS, index=q_idx, key="entry_quarter")
+
+
+    # ── DROPDOWN: pick which data element to enter (shown only if >1 element) ──
+    if len(cols) > 1:
+        # Build readable options list
+        options = [IND_BY_COL[c]['label'] for c in cols if c in IND_BY_COL]
+        st.markdown("""
+        <div style="background:white;border-radius:12px;padding:18px 22px;
+                    box-shadow:0 2px 12px rgba(0,0,0,0.07);margin-bottom:20px;">
+            <p style="color:#2d3748;font-weight:700;font-size:1rem;margin:0 0 10px;">
+                🎯 Select Data Element to Enter:
+            </p>
+        </div>""", unsafe_allow_html=True)
+        chosen_label = st.selectbox(
+            "Data Element",
+            options=options,
+            key="dept_element_select",
+            label_visibility="collapsed"
+        )
+        # Map label back to col key
+        col_key = next(c for c in cols if c in IND_BY_COL and IND_BY_COL[c]['label'] == chosen_label)
+    else:
+        col_key = cols[0]
+        chosen_label = IND_BY_COL[col_key]['label'] if col_key in IND_BY_COL else col_key
+
+    col_label = IND_BY_COL[col_key]['label'] if col_key in IND_BY_COL else col_key
+    col_max   = float(IND_BY_COL[col_key]['max']) if col_key in IND_BY_COL else 5.0
+
+    # ── ELEMENT BADGE ─────────────────────────────────────────────────────────
+    badge_items = []
+    for c in cols:
+        if c not in IND_BY_COL: continue
+        is_active = (c == col_key)
+        bg = "#1f77b4" if is_active else "#e2e8f0"
+        color = "white" if is_active else "#4a5568"
+        icon = "✔ " if is_active else ""
+        label = IND_BY_COL[c]["label"]
+        item = f'<span style="background:{bg}; color:{color}; padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:600; margin:2px;">{icon}{label}</span>'
+        badge_items.append(item)
+    badge_list = " ".join(badge_items)
+    st.markdown(f"""
+    <div style="background:white;border-radius:10px;padding:14px 20px;
+                box-shadow:0 2px 10px rgba(0,0,0,0.06);margin-bottom:18px;
+                border-left:4px solid #1f77b4;">
+        <span style="color:#718096;font-size:0.8rem;font-weight:600;
+                     text-transform:uppercase;letter-spacing:0.5px;">Available Elements:</span><br>
+        <div style="margin-top:8px;">{badge_list}</div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── ENTRY CARD ────────────────────────────────────────────────────────────
+    card(f"""
+    <h3 style="color:#2d3748;margin:0 0 6px;">Enter <span style="color:#1f77b4;">{col_label}</span> Scores</h3>
+    <p style="color:#718096;margin:0;font-size:0.88rem;">
+        Values: 0 – {col_max} pts per Woreda. Click <strong>Save</strong> when done.
+    </p>""")
+
+    # Build current values from Excel (Filtered by Year & Quarter)
+    current_vals = {}
+    for w in WOREDAS:
+        mask = (df['woreda_name'] == w) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
+        row = df[mask]
+        current_vals[w] = float(row[col_key].iloc[0]) if not row.empty else 0.0
+
+    with st.form(f"dept_form_{col_key}_{sel_year}_{sel_q}"):
+        # Table header - BOLD BORDERS
+        st.markdown(f"""
+        <div style="display:grid;grid-template-columns:3fr 2fr;gap:0;
+                    background:linear-gradient(135deg,#0a1628,#1f77b4);
+                    border:3px solid #0a1628;
+                    border-radius:12px 12px 0 0;padding:12px 20px;">
+            <div style="color:white;font-weight:900;font-size:1.1rem;letter-spacing:0.5px;">🏘️ WOREDA NAME</div>
+            <div style="color:white;font-weight:900;font-size:1.1rem;text-align:center;letter-spacing:0.5px;">
+                {col_label.upper()}&nbsp;<span style="opacity:0.8;font-weight:400;font-size:0.85rem;">(MAX: {col_max})</span>
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+        inputs = {}
+        for i, woreda in enumerate(WOREDAS):
+            bg = '#f8fafc' if i % 2 == 0 else '#ffffff'
+            c_name, c_inp = st.columns([3, 2])
+            with c_name:
+                st.markdown(f"""
+                <div style="background:{bg};padding:10px 20px;border-bottom:2px solid #cbd5e0;
+                            border-left:6px solid #1f77b4;border-right:2px solid #cbd5e0;
+                            min-height:58px;display:flex;align-items:center;">
+                    <span style="color:#1a3a5c;font-size:0.85rem;font-weight:900;margin-right:12px;">{i+1:02d}</span>
+                    <span style="color:#0a1628;font-weight:800;font-size:1rem;">{woreda.upper()}</span>
+                </div>""", unsafe_allow_html=True)
+            with c_inp:
+                inputs[woreda] = st.number_input(
+                    f"s{i}", min_value=0.0, max_value=col_max,
+                    value=current_vals[woreda], step=0.5,
+                    key=f"di_{col_key}_{i}", label_visibility="collapsed")
+
+        total_inp = sum(inputs.values())
+        average   = total_inp / len(WOREDAS)
+
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#e0f2fe,#bae6fd);
+                    border:3px solid #0c4a6e;
+                    border-radius:0 0 12px 12px;padding:16px 20px;margin-bottom:20px;">
+            <span style="color:#0c4a6e;font-weight:900;font-size:1.1rem;">
+                📊 ZONE TOTAL: <span style="font-size:1.3rem;">{total_inp:.1f}</span> / {len(WOREDAS)*col_max:.0f}
+                &nbsp;&nbsp;|&nbsp;&nbsp; AVERAGE SCORE: <span style="font-size:1.3rem;">{average:.2f}</span>
+            </span>
+        </div>""", unsafe_allow_html=True)
+
+        _, btn_col, _ = st.columns([1, 2, 1])
+        with btn_col:
+            save = st.form_submit_button(f"💾  Save {col_label} Data", use_container_width=True, type="primary")
+
+    if save:
+        for woreda, val in inputs.items():
+            mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
+            if mask.any():
+                df.loc[mask, col_key] = val
+                df.loc[mask, 'last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
+            else:
+                # Fallback: create row if missing (should be handled by init_data_file, but just in case)
+                new_row = {'woreda_name': woreda, 'year': sel_year, 'quarter': sel_q, col_key: val}
+                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         
-        # Apply conditional formatting with 3-color scheme
-        if percentage >= 80:
-            percentage_class = "high-percentage"
-            percentage_display = f"{percentage:.1f}% 🟢"
-        elif percentage >= 50:
-            percentage_class = "medium-percentage"
-            percentage_display = f"{percentage:.1f}% 🟡"
-        else:
-            percentage_class = "low-percentage"
-            percentage_display = f"{percentage:.1f}% 🔴"
-        
-        ranking_data.append({
-            'Rank': rank,
-            'Woreda Name': row.woreda_name,
-            'Total Score (Out of 110)': f"{row.total_score:.1f}",
-            'Final Percentage (%)': percentage_display,
-            'Color Class': percentage_class
-        })
+        save_data(df)
+        st.success(f"✅ {col_label} data saved for {sel_year} {sel_q}!")
+        st.balloons()
+        st.rerun()
+
+    # ── Summary table (HTML for BOLD BORDERS) ─────────────────────────────────
+    st.markdown("---")
+    st.markdown(f"### 📋 Current {col_label} Values")
     
-    ranking_df = pd.DataFrame(ranking_data)
-    
-    # Apply custom CSS for conditional formatting
     st.markdown("""
     <style>
-    .high-percentage {
-        background-color: #d4edda !important;
-        color: #155724 !important;
-        font-weight: bold !important;
-        border-radius: 8px !important;
-        padding: 8px !important;
-        text-align: center !important;
-        border: 2px solid #28a745 !important;
+    .sumtable {
+        width: 100%; border-collapse: collapse; border: 4px solid #000000;
+        border-radius: 10px; overflow: hidden; margin-bottom: 30px;
     }
-    .medium-percentage {
-        background-color: #fff3cd !important;
-        color: #856404 !important;
-        font-weight: bold !important;
-        border-radius: 8px !important;
-        padding: 8px !important;
-        text-align: center !important;
-        border: 2px solid #ffc107 !important;
+    .sumtable th {
+        background: #0a1628; color: white; padding: 12px; font-weight: 900;
+        border: 2px solid #ffffff; text-align: center;
     }
-    .low-percentage {
-        background-color: #f8d7da !important;
-        color: #721c24 !important;
-        font-weight: bold !important;
-        border-radius: 8px !important;
-        padding: 8px !important;
-        text-align: center !important;
-        border: 2px solid #dc3545 !important;
+    .sumtable td {
+        padding: 10px 12px; border: 2px solid #000000; font-weight: 800;
+        color: #000000; text-align: center;
     }
-    </style>
-    """, unsafe_allow_html=True)
+    .sumtable tr:nth-child(even) { background: #f8fafc; }
+    </style>""", unsafe_allow_html=True)
+
+    header = ['#', 'WOREDA', f'{col_label.upper()} SCORE', 'PERCENTAGE', 'LEVEL']
+    html = '<table class="sumtable"><thead><tr>'
+    for h in header: html += f'<th>{h}</th>'
+    html += '</tr></thead><tbody>'
+
+    for i, w in enumerate(WOREDAS):
+        mask = (df['woreda_name'] == w) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
+        row = df[mask]
+        v   = float(row[col_key].iloc[0]) if not row.empty else 0.0
+        pct = v / col_max * 100 if col_max else 0
+        color, emoji, lvl = perf_band(pct)
+        html += f'<tr>'
+        html += f'<td>{i+1}</td>'
+        html += f'<td style="text-align:left; background:#e2e8f0;">{w}</td>'
+        html += f'<td>{v:.1f}</td>'
+        html += f'<td style="color:{color};">{pct:.1f}% {emoji}</td>'
+        html += f'<td><span style="background:{color}; color:white; padding:2px 8px; border-radius:4px;">{lvl}</span></td>'
+        html += '</tr>'
     
-    # Display ranking table with color coding using HTML
-    ranking_html = """
-    <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 18px; font-weight: bold; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    html += '</tbody></table>'
+    st.markdown(html, unsafe_allow_html=True)
+    footer()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RANKING TABLE  (HTML, clean)
+# ─────────────────────────────────────────────────────────────────────────────
+def render_ranking_table(ranked: pd.DataFrame):
+    st.markdown("""
+    <style>
+    .rtable {
+        width: 100%;
+        border-collapse: collapse;
+        border: 4px solid #000000;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+        font-size: 0.95rem;
+    }
+    .rtable thead tr { background: linear-gradient(135deg, #0a1628, #1f77b4); }
+    .rtable th {
+        color: white;
+        padding: 16px 20px;
+        text-align: left;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border: 2px solid #ffffff;
+    }
+    .rtable td {
+        padding: 14px 20px;
+        border: 2px solid #000000; /* BOLD ALL BORDERS */
+        color: #000000;
+        font-weight: 800;
+    }
+    .rtable tbody tr:hover td { background: #edf2f7 !important; }
+    </style>""", unsafe_allow_html=True)
+
+    rows_html = ""
+    for _, row in ranked.iterrows():
+        rank  = int(row['rank'])
+        wr    = row['woreda_name']
+        total = row['total_score']
+        # Use Average Indicator Performance for the rankings
+        pct   = row['avg_indicator_perf']
+        color, emoji, lvl = perf_band(pct)
+        bg    = '#ffffff' if rank % 2 == 0 else '#f8fafc'
+        w_bar = min(int(pct), 100)
+
+        if rank == 1:   badge_style = "background:#FFD700;color:#333;"
+        elif rank == 2: badge_style = "background:#C0C0C0;color:#333;"
+        elif rank == 3: badge_style = "background:#CD7F32;color:white;"
+        else:           badge_style = f"background:{color};color:white;"
+
+        rank_text = {1: '🥇', 2: '🥈', 3: '🥉'}.get(rank, f'#{rank}')
+
+        rows_html += f"""
+        <tr style="background:{bg};">
+            <td style="text-align:center;">
+                <span style="{badge_style}display:inline-flex;align-items:center;justify-content:center;
+                             width:36px;height:36px;border-radius:50%;font-weight:800;font-size:0.82rem;">
+                    {rank_text}
+                </span>
+            </td>
+            <td style="font-weight:600;color:#2d3748;">{wr}</td>
+            <td style="text-align:center;font-weight:700;color:#1f77b4;font-size:1rem;">
+                {total:.1f}
+                <span style="color:#a0aec0;font-weight:400;font-size:0.78rem;">/ {TOTAL_MAX:.0f}</span>
+            </td>
+            <td style="min-width:220px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="flex:1;background:#e2e8f0;border-radius:4px;height:10px;overflow:hidden;">
+                        <div style="width:{w_bar}%;background:{color};height:100%;border-radius:4px;"></div>
+                    </div>
+                    <span style="font-weight:800;color:{color};min-width:68px;text-align:right;font-size:0.95rem;">
+                        {pct:.1f}% {emoji}
+                    </span>
+                </div>
+            </td>
+            <td style="text-align:center;">
+                <span style="background:{color}22;color:{color};border:1px solid {color};
+                             padding:3px 12px;border-radius:12px;font-size:0.78rem;font-weight:700;">
+                    {lvl}
+                </span>
+            </td>
+        </tr>"""
+
+    st.markdown(f"""
+    <table class="rtable">
         <thead>
-            <tr style="background: linear-gradient(135deg, #1f77b4, #1565c0); color: white; font-weight: 900;">
-                <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Rank</th>
-                <th style="padding: 15px; border: none; text-align: left; font-size: 20px;">Woreda Name</th>
-                <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Total Score (Out of 110)</th>
-                <th style="padding: 15px; border: none; text-align: center; font-size: 20px;">Final Percentage (%)</th>
+            <tr>
+                <th style="width:60px;text-align:center;">Rank</th>
+                <th>Woreda Name</th>
+                <th style="text-align:center;">Total Score</th>
+                <th>Performance</th>
+                <th style="text-align:center;">Level</th>
             </tr>
         </thead>
-        <tbody>
-    """
-    
-    for _, row in ranking_df.iterrows():
-        percentage = float(row['Final Percentage (%)'].replace('%', '').replace('**', '').replace('🟢', '').replace('🟡', '').replace('🔴', '').strip())
-        
-        # Apply color coding with better thresholds
-        if percentage >= 80:
-            bg_color = '#d4edda'
-            text_color = '#155724'
-            emoji = '🟢'
-            border_color = '#28a745'
-            cell_class = 'high-percentage-cell'
-        elif percentage >= 60:
-            bg_color = '#fff3cd'
-            text_color = '#856404'
-            emoji = '🟡'
-            border_color = '#ffc107'
-            cell_class = 'medium-percentage-cell'
-        elif percentage >= 40:
-            bg_color = '#fff3cd'
-            text_color = '#856404'
-            emoji = '🟡'
-            border_color = '#ffc107'
-            cell_class = 'medium-percentage-cell'
-        else:
-            bg_color = '#f8d7da'
-            text_color = '#721c24'
-            emoji = '🔴'
-            border_color = '#dc3545'
-            cell_class = 'low-percentage-cell'
-        
-        ranking_html += f"""
-            <tr style="background-color: {'white' if _ % 2 == 0 else '#f8f9fa'}; transition: all 0.3s ease;">
-                <td style="padding: 12px; border: none; font-weight: bold; text-align: center; color: #2c3e50;">{row['Rank']}</td>
-                <td style="padding: 12px; border: none; font-weight: bold; text-align: left; color: #2c3e50;">{row['Woreda Name']}</td>
-                <td style="padding: 12px; border: none; font-weight: bold; text-align: center; background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #1565c0; font-size: 20px; border: 2px solid #1f77b4; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">{row['Total Score (Out of 110)']}</td>
-                <td style="padding: 12px; border: none; font-weight: 900; text-align: center; background: {bg_color}; color: {text_color}; font-size: 20px; border: 2px solid {border_color}; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; overflow: hidden;">
-                    <span style="position: relative; z-index: 2;">{percentage:.1f}% {emoji}</span>
-                    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);"></div>
-                </td>
-            </tr>
-        """
-    
-    ranking_html += """
-        </tbody>
+        <tbody>{rows_html}</tbody>
     </table>
-    
-    <style>
-    .high-percentage-cell {
-        animation: pulse-green 2s infinite;
-    }
-    .medium-percentage-cell {
-        animation: pulse-yellow 2s infinite;
-    }
-    .low-percentage-cell {
-        animation: pulse-red 2s infinite;
-    }
-    @keyframes pulse-green {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
-        50% { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
-    }
-    @keyframes pulse-yellow {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
-        50% { box-shadow: 0 0 0 8px rgba(255, 193, 7, 0); }
-    }
-    @keyframes pulse-red {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
-        50% { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
-    }
-    table tr:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-    }
-    </style>
-    """
-    
-    st.markdown(ranking_html, unsafe_allow_html=True)
-    
-    # Detailed Analysis
-    st.subheader("🔍 Detailed Woreda Analysis")
-    selected_woreda = st.selectbox("Select Woreda for Detailed Analysis", get_woredas())
-    
-    if selected_woreda:
-        detailed_data = get_woreda_detailed_data(selected_woreda)
-        if not detailed_data.empty:
-            # Line Chart (replacing Radar Chart)
-            categories = [
-                'Medical Service', 'RMH', 'Pharmacy & Logistic', 'Ultrasound', 'APTS',
-                'Community Pharmacy', 'DM Test', 'EPI', 'Child Health', 'TB & Leprosy',
-                'PHEM', 'CBHI', 'Finance', 'Plan', 'WT', 'Full EMR', 'EPI Modernization',
-                'Zero Dose', 'Multi-Sectoral', 'Cash Program', 'Hygiene & Sanitation',
-                'HIV/STI'
-            ]
-            values = [
-                detailed_data['medical_service'].sum(),
-                detailed_data['rmh'].sum(),
-                detailed_data['pharmacy_logistic'].sum(),
-                detailed_data['ultrasound'].sum(),
-                detailed_data['apts'].sum(),
-                detailed_data['community_pharmacy'].sum(),
-                detailed_data['dm_test'].sum(),
-                detailed_data['epi'].sum(),
-                detailed_data['child_health'].sum(),
-                detailed_data['tb_leprosy'].sum(),
-                detailed_data['phem'].sum(),
-                detailed_data['cbhi'].sum(),
-                detailed_data['finance'].sum(),
-                detailed_data['plan'].sum(),
-                detailed_data['wt'].sum(),
-                detailed_data['full_emr'].sum(),
-                detailed_data['epi_modernization'].sum(),
-                detailed_data['zero_dose'].sum(),
-                detailed_data['multi_sectoral'].sum(),
-                detailed_data['cash_program'].sum(),
-                detailed_data['hygiene_sanitation'].sum(),
-                detailed_data['hiv_sti'].sum() if 'hiv_sti' in detailed_data.columns else 0
-            ]
-            
-            # Create line chart
-            fig_line = go.Figure()
-            fig_line.add_trace(go.Scatter(
-                x=categories,
-                y=values,
-                mode='lines+markers+text',  # Add markers and text
-                name=selected_woreda,
-                line=dict(color='#1f77b4', width=6),  # Much thicker line for better visibility
-                marker=dict(size=10, color='#1f77b4', symbol='circle'),  # Add visible markers
-                text=values,
-                textposition='top center',
-                textfont=dict(size=12, color='black', family='Arial, sans-serif')  # Larger, bold text
-            ))
-            
-            fig_line.update_layout(
-                title=f"<b style='font-size: 18px;'>{selected_woreda} Performance Line Chart</b>",
-                xaxis_title="<b>Departments</b>",
-                yaxis_title="<b>Score</b>",
-                xaxis=dict(
-                    tickangle=90,  # Rotate to 90 degrees for better readability
-                    tickfont=dict(size=14, family='Arial, sans-serif'),  # Larger font
-                    title_font=dict(size=16, family='Arial, sans-serif'),  # Larger title
-                    automargin=True  # Auto-adjust margins
-                ),
-                yaxis=dict(
-                    range=[0, max(values) + 1 if values else 10],
-                    title_font=dict(size=16, family='Arial, sans-serif'),  # Larger title
-                    tickfont=dict(size=14, family='Arial, sans-serif')  # Larger font
-                ),
-                height=700,  # Increased height for better visibility
-                showlegend=True,
-                margin=dict(l=80, r=80, t=100, b=150)  # Increased margins for labels
-            )
-            
-            st.plotly_chart(fig_line, use_container_width=True)
-            
-            # Data Table - Display all Woredas with 0 data and remove entered_by header
-            st.subheader("📋 Detailed Data")
-            
-            # Add CSS for bold table text and larger font
-            st.markdown("""
-            <style>
-            .dataframe {
-                font-size: 18px !important;
-                font-weight: bold !important;
-            }
-            .dataframe th {
-                font-size: 20px !important;
-                font-weight: bold !important;
-                background-color: #1f77b4 !important;
-                color: white !important;
-                padding: 15px !important;
-                text-align: center !important;
-            }
-            .dataframe td {
-                font-size: 18px !important;
-                font-weight: bold !important;
-                padding: 12px !important;
-                border: 1px solid #ddd !important;
-                text-align: center !important;
-                height: 50px !important;  /* Increased row height */
-            }
-            /* Emphasize Total Score and Final Percentage columns */
-            .dataframe td:nth-last-child(1),
-            .dataframe td:nth-last-child(2) {
-                background-color: #e3f2fd !important;
-                color: #1565c0 !important;
-                font-size: 20px !important;
-                font-weight: 900 !important;
-                border: 2px solid #1f77b4 !important;
-            }
-            /* Color coding for Final Percentage column */
-            .high-percentage-cell {
-                background-color: #d4edda !important;
-                color: #155724 !important;
-                font-weight: 900 !important;
-            }
-            .medium-percentage-cell {
-                background-color: #fff3cd !important;
-                color: #856404 !important;
-                font-weight: 900 !important;
-            }
-            .low-percentage-cell {
-                background-color: #f8d7da !important;
-                color: #721c24 !important;
-                font-weight: 900 !important;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            # Get all Woredas data
-            all_data = get_performance_data()
-            
-            # Remove unwanted columns and group by woreda_name
-            if not all_data.empty:
-                # Remove entered_by and department columns
-                columns_to_drop = ['entered_by', 'department']
-                existing_columns_to_drop = [col for col in columns_to_drop if col in all_data.columns]
-                
-                if existing_columns_to_drop:
-                    all_data = all_data.drop(columns=existing_columns_to_drop)
-                
-                # Group by woreda_name and sum all performance indicators
-                numeric_columns = all_data.select_dtypes(include=['number']).columns
-                grouped_data = all_data.groupby('woreda_name')[numeric_columns].sum().reset_index()
-                
-                # Calculate total score and percentage
-                performance_indicators = [
-                    'medical_service', 'rmh', 'pharmacy_logistic', 'ultrasound', 'apts',
-                    'community_pharmacy', 'dm_test', 'epi', 'child_health', 'tb_leprosy',
-                    'phem', 'cbhi', 'finance', 'plan', 'wt', 'full_emr', 'epi_modernization',
-                    'zero_dose', 'multi_sectoral', 'cash_program', 'hygiene_sanitation',
-                    'hiv_sti'
-                ]
-                
-                # Calculate total score (sum of all indicators)
-                grouped_data['total_score'] = grouped_data[performance_indicators].sum(axis=1)
-                
-                # Calculate percentage (total_score / 105 * 100)
-                grouped_data['percentage'] = (grouped_data['total_score'] / 105 * 100).round(2)
-                
-                # Reorder columns to show id, woreda_name, indicators, total_score, percentage
-                if 'id' in grouped_data.columns:
-                    final_columns = ['id', 'woreda_name'] + performance_indicators + ['total_score', 'percentage']
-                else:
-                    final_columns = ['woreda_name'] + performance_indicators + ['total_score', 'percentage']
-                
-                # Filter to only include columns that exist
-                final_columns = [col for col in final_columns if col in grouped_data.columns]
-                
-                final_data = grouped_data[final_columns]
-                
-                # Rename columns for better display
-                column_rename_map = {
-                    'total_score': 'Total Score (Out of 105)',
-                    'percentage': 'Percentage (%)'
-                }
-                final_data = final_data.rename(columns=column_rename_map)
-                
-                st.dataframe(final_data, use_container_width=True)
-            else:
-                st.info("No performance data available in the system.")
-        else:
-            st.info(f"No performance data available for {selected_woreda}")
-    else:
-        st.info("No performance data available. Please have department heads enter data first.")
-    
-    # Add footer with enhanced visibility
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; padding: 30px 0; background-color: #f8f9fa; border-top: 3px solid #1f77b4; margin-top: 40px;">
-        <p style="color: #1f77b4; font-size: 18px; font-weight: bold; margin: 10px 0;">© 2026 All Rights Reserved</p>
-        <p style="color: #333; font-size: 16px; margin: 8px 0;">Developed by <strong style="color: #1f77b4;">Abe_Technology</strong></p>
-        <p style="color: #333; font-size: 16px; margin: 8px 0;">Contact via Telegram: <a href="https://t.me/AI_Technology" target="_blank" style="color: #1f77b4; text-decoration: none; font-weight: bold;">@AI_Technology</a></p>
-    </div>
-    """, unsafe_allow_html=True)
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;">
+        <span style="background:#28a74522;color:#28a745;border:1px solid #28a745;
+                     padding:4px 12px;border-radius:12px;font-size:0.78rem;font-weight:600;">🟢 High ≥80%</span>
+        <span style="background:#1f77b422;color:#1f77b4;border:1px solid #1f77b4;
+                     padding:4px 12px;border-radius:12px;font-size:0.78rem;font-weight:600;">🔵 Good 60–79%</span>
+        <span style="background:#ffc10722;color:#856404;border:1px solid #ffc107;
+                     padding:4px 12px;border-radius:12px;font-size:0.78rem;font-weight:600;">🟡 Average 40–59%</span>
+        <span style="background:#dc354522;color:#dc3545;border:1px solid #dc3545;
+                     padding:4px 12px;border-radius:12px;font-size:0.78rem;font-weight:600;">🔴 Low &lt;40%</span>
+    </div><br>""", unsafe_allow_html=True)
 
-def super_admin_dashboard():
-    st.title("🔧 Super Admin Dashboard - Full Control")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CHARTS
+# ─────────────────────────────────────────────────────────────────────────────
+def render_charts(ranked: pd.DataFrame, df: pd.DataFrame):
+    # ── CHART 1: Woreda Ranking Bar Chart ─────────────────────────────────────
+    bar = px.bar(
+        ranked, x='avg_indicator_perf', y='woreda_name', orientation='h',
+        color='avg_indicator_perf',
+        color_continuous_scale=[[0,'#dc3545'],[0.4,'#ffc107'],[0.6,'#1f77b4'],[1,'#28a745']],
+        text='avg_indicator_perf',
+        labels={'avg_indicator_perf': 'Avg Performance (%)', 'woreda_name': 'Woreda'},
+        title='<b>Woreda Performance Rankings (Average Indicator Achievement)</b>',
+    )
+    bar.update_layout(
+        height=620, coloraxis_showscale=False, paper_bgcolor='white', plot_bgcolor='#f8fafc',
+        xaxis=dict(range=[0, 110], title='Average Performance (%)'),
+        yaxis=dict(categoryorder='total ascending', title=''),
+        margin=dict(l=8, r=80, t=48, b=16),
+    )
+    bar.update_traces(texttemplate='%{text:.1f}%', textposition='outside',
+                      textfont=dict(size=11))
+    st.plotly_chart(bar, use_container_width=True)
+
+    st.markdown("---")  # Separator
+
+    # ── CHART 2: Detailed Line Graph ──────────────────────────────────────────
+    st.markdown("""
+    <div style="background:#f8fafc; border:4px solid #1f77b4; border-radius:10px; padding:16px; margin-bottom:15px; border-left: 10px solid #1f77b4;">
+        <p style="color:#0a1628; font-weight:900; font-size:1.1rem; margin:0; text-transform:uppercase; letter-spacing:0.5px;">
+            📊 Performance Breakdown — Indicator Level Analysis
+        </p>
+    </div>""", unsafe_allow_html=True)
     
-    # Tabs for different functions
-    tab1, tab2, tab3 = st.tabs(["📊 Rankings", "✏️ Edit Data", "👥 User Management"])
+    selected_woredas = st.multiselect(
+        "🏘️ Select Woredas to Compare Individual Indicators:", 
+        options=WOREDAS, 
+        default=[ranked.iloc[0]['woreda_name']] if not ranked.empty else []
+    )
     
+    if not selected_woredas:
+        st.info("💡 Please select one or more Woredas to generate the indicator breakdown graph.")
+    else:
+        # Prepare data for line chart
+        plot_data = []
+        for w_name in selected_woredas:
+            w_row = df[df['woreda_name'] == w_name]
+            if w_row.empty: continue
+            for ind in INDICATORS:
+                plot_data.append({
+                    'Woreda': w_name,
+                    'Indicator': ind['label'],
+                    'Score': float(w_row[ind['col']].iloc[0]),
+                    'Max': ind['max']
+                })
+        
+        line_df = pd.DataFrame(plot_data)
+        
+        line = px.line(
+            line_df, x='Indicator', y='Score', color='Woreda',
+            markers=True,
+            title='<b>Detailed Performance Breakdown by Indicator</b>',
+            labels={'Score': 'Score Value', 'Indicator': 'Data Element'},
+            hover_data={'Max': True}
+        )
+        line.update_layout(
+            height=580, 
+            paper_bgcolor='white', 
+            plot_bgcolor='#f8fafc',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            margin=dict(l=10, r=10, t=80, b=140)
+        )
+        # Make lines bold
+        line.update_traces(line=dict(width=5), marker=dict(size=12))
+        line.update_xaxes(tickangle=45, showgrid=True, gridwidth=1, gridcolor='#edf2f7')
+        line.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#edf2f7')
+        st.plotly_chart(line, use_container_width=True)
+
+
+def render_departmental_summary(df: pd.DataFrame):
+    """Shows total scores for each Department (Category) per Woreda."""
+    categories = sorted(list(set(i['cat'] for i in INDICATORS)))
+    
+    st.markdown("""
+    <style>
+    .depttable {
+        width: 100%; border-collapse: collapse; border: 4px solid #000000;
+        margin: 20px 0; font-family: 'Inter', sans-serif;
+    }
+    .depttable th {
+        background: #1a3a5c; color: white; padding: 14px 10px;
+        font-weight: 900; font-size: 0.8rem; border: 2px solid #ffffff;
+        text-align: center;
+    }
+    .depttable td {
+        padding: 12px 10px; border: 2px solid #000000;
+        font-weight: 800; font-size: 0.9rem; color: #000000;
+        text-align: center;
+    }
+    .depttable tr:nth-child(even) { background: #f8fafc; }
+    </style>""", unsafe_allow_html=True)
+
+    header = ['WOREDA'] + [c.upper() for c in categories] + ['TOTAL', '%']
+    html = '<table class="depttable"><thead><tr>'
+    for h in header: html += f'<th>{h}</th>'
+    html += '</tr></thead><tbody>'
+
+    # Recalculate to be safe
+    df = recalculate(df)
+    
+    for _, row in df.sort_values('percentage', ascending=False).iterrows():
+        html += '<tr>'
+        html += f'<td style="text-align:left; background:#e2e8f0; font-weight:900;">{row["woreda_name"]}</td>'
+        
+        for cat in categories:
+            cat_cols = [i['col'] for i in INDICATORS if i['cat'] == cat]
+            cat_score = sum(row[c] for c in cat_cols if c in df.columns)
+            html += f'<td>{cat_score:.1f}</td>'
+            
+        html += f'<td style="background:rgba(31,119,180,0.1); color:#1f77b4; font-weight:900;">{row["total_score"]:.1f}</td>'
+        html += f'<td style="background:rgba(31,119,180,0.1); font-weight:900; text-decoration:underline;">{row["percentage"]:.1f}%</td>'
+        html += '</tr>'
+        
+    html += '</tbody></table>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FULL DATA TABLE  (view-only)
+# ─────────────────────────────────────────────────────────────────────────────
+def render_full_table_readonly(df: pd.DataFrame):
+    """Full Performance Report with two-level headers (Departmental Grouping)."""
+    # Group indicators by category
+    from collections import OrderedDict
+    cat_map = OrderedDict()
+    for ind in INDICATORS:
+        cat = ind['cat']
+        if cat not in cat_map: cat_map[cat] = []
+        cat_map[cat].append(ind)
+    
+    st.markdown("""
+    <style>
+    .fulltable {
+        width: 100%; border-collapse: collapse; border: 4px solid #000000;
+        margin: 20px 0; font-family: 'Inter', sans-serif;
+    }
+    .fulltable thead th {
+        background: #0a1628; color: white; padding: 10px 5px;
+        font-weight: 900; font-size: 0.7rem; border: 2px solid #ffffff;
+        text-align: center; text-transform: uppercase;
+    }
+    .fulltable .cat-header {
+        background: #1f77b4; font-size: 0.85rem; letter-spacing: 1px;
+    }
+    .fulltable td {
+        padding: 8px 5px; border: 2px solid #000000;
+        font-weight: 800; font-size: 0.8rem; color: #000000;
+        text-align: center;
+    }
+    .fulltable tr:nth-child(even) { background: #f1f5f9; }
+    .fulltable .woreda-cell { background: #e2e8f0; text-align: left; font-weight: 900; }
+    .fulltable .score-cell { background: rgba(31,119,180,0.05); }
+    </style>""", unsafe_allow_html=True)
+
+    # Table Header
+    html = '<table class="fulltable"><thead>'
+    # Row 1: Categories
+    html += '<tr><th rowspan="2">WOREDA</th>'
+    for cat, inds in cat_map.items():
+        html += f'<th colspan="{len(inds)}" class="cat-header">{cat}</th>'
+    html += '<th rowspan="2">TOTAL</th><th rowspan="2">%</th></tr>'
+    
+    # Row 2: Indicators
+    html += '<tr>'
+    for cat, inds in cat_map.items():
+        for ind in inds:
+            label = ind['label'].replace(' ', '<br>')
+            html += f'<th>{label}</th>'
+    html += '</tr></thead><tbody>'
+
+    # Rows
+    for _, row in df.sort_values('percentage', ascending=False).iterrows():
+        html += '<tr>'
+        html += f'<td class="woreda-cell">{row["woreda_name"]}</td>'
+        for cat, inds in cat_map.items():
+            for ind in inds:
+                val = row.get(ind['col'], 0)
+                # Handle NaN or None safely
+                try:
+                    fval = float(val)
+                    if pd.isna(fval): fval = 0.0
+                except:
+                    fval = 0.0
+                html += f'<td>{fval:.1f}</td>'
+        
+        total = float(row.get('total_score', 0))
+        pct = float(row.get('percentage', 0))
+        html += f'<td class="score-cell" style="color:#1f77b4;">{total:.1f}</td>'
+        html += f'<td class="score-cell" style="text-decoration: underline;">{pct:.1f}%</td>'
+        html += '</tr>'
+
+    html += '</tbody></table>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EDIT DATA  (Super Admin only)
+# ─────────────────────────────────────────────────────────────────────────────
+def render_edit_view():
+    page_header("✏️ Edit Performance Data", "Super Admin — Full Edit Access")
+    df = load_data()
+    sel_year = st.session_state.get('filter_year', "2018")
+    sel_q    = st.session_state.get('filter_quarter', QUARTERS[2])
+    
+    st.markdown(f"#### 📅 Period: {sel_year} {sel_q}")
+
+    dept_labels = [i['label'] for i in INDICATORS]
+    chosen_label = st.selectbox("📋 Select Department to Edit:", dept_labels, key="sa_sel")
+    ind_info = next(i for i in INDICATORS if i['label'] == chosen_label)
+    col_key  = ind_info['col']
+    col_max  = ind_info['max']
+
+    st.markdown(f"""
+    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;
+                padding:11px 16px;margin-bottom:18px;">
+        ⚠️ <strong>Super Admin Edit Mode</strong> — Editing:
+        <strong>{chosen_label}</strong> &nbsp;(Max per Woreda: <strong>{col_max}</strong>)
+    </div>""", unsafe_allow_html=True)
+
+    with st.form(f"sa_form_{col_key}"):
+        inputs = {}
+        for i, woreda in enumerate(WOREDAS):
+            mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
+            row = df[mask]
+            cur = float(row[col_key].iloc[0]) if not row.empty else 0.0
+            bg  = '#f8fafc' if i % 2 == 0 else '#ffffff'
+            c1, c2 = st.columns([3, 2])
+            with c1:
+                st.markdown(f"""
+                <div style="background:{bg};padding:9px 16px;border-bottom:1px solid #e2e8f0;
+                            border-left:3px solid #ffc107;min-height:52px;display:flex;align-items:center;">
+                    <span style="color:#a0aec0;font-size:0.74rem;font-weight:600;margin-right:10px;">#{i+1:02d}</span>
+                    <span style="color:#2d3748;font-weight:600;">{woreda}</span>
+                </div>""", unsafe_allow_html=True)
+            with c2:
+                inputs[woreda] = st.number_input(
+                    f"sa_{i}", min_value=0.0, max_value=float(col_max),
+                    value=cur, step=0.5, key=f"sa_{col_key}_{i}", label_visibility="collapsed")
+
+        _, btn_col, _ = st.columns([1, 2, 1])
+        with btn_col:
+            saved = st.form_submit_button(f"💾  Save {chosen_label}", use_container_width=True, type="primary")
+
+    if saved:
+        for woreda, val in inputs.items():
+            mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
+            if mask.any():
+                df.loc[mask, col_key] = val
+                df.loc[mask, 'last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
+        save_data(df)
+        st.success(f"✅ {chosen_label} data updated successfully!")
+        st.rerun()
+
+    footer()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DASHBOARD  (Admin + Super Admin)
+# ─────────────────────────────────────────────────────────────────────────────
+def dashboard_view():
+    role = st.session_state.role
+    page_header("📈 Performance Dashboard",
+                f"{'View-only' if role == 'Admin' else 'Super Admin'} — Healthcare Rankings")
+    df = load_data()
+    sel_year = st.session_state.get('filter_year', "2018")
+    sel_q    = st.session_state.get('filter_quarter', QUARTERS[2])
+    
+    # Filter by period
+    df = df[(df['year'] == sel_year) & (df['quarter'] == sel_q)].copy()
+    if df.empty:
+        st.warning(f"No data found for {sel_year} {sel_q}. Showing zeros.")
+        rows = []
+        for w in WOREDAS:
+             rows.append({'woreda_name': w, 'year': sel_year, 'quarter': sel_q, 'total_score':0, 'percentage':0})
+        df = pd.DataFrame(rows)
+        for i in INDICATORS: df[i['col']] = 0.0
+
+    df = recalculate(df)
+
+    ranked = df.sort_values('avg_indicator_perf', ascending=False).reset_index(drop=True)
+    ranked['rank'] = range(1, len(ranked) + 1)
+
+    # KPI row
+    avg_pct   = ranked['avg_indicator_perf'].mean()
+    top_row   = ranked.iloc[0]
+    bot_row   = ranked.iloc[-1]
+    filled    = int((df[[i['col'] for i in INDICATORS]] > 0).any(axis=1).sum())
+
+    k1, k2, k3, k4 = st.columns(4)
+    kpi_style = ("background:white;border-radius:12px;padding:18px 14px;"
+                 "box-shadow:0 2px 12px rgba(0,0,0,0.07);text-align:center;")
+
+    with k1:
+        st.markdown(f"""<div style="{kpi_style}border-top:4px solid #1f77b4;">
+            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Zone Average</p>
+            <h2 style="color:#1f77b4;font-size:2rem;margin:8px 0 0;font-weight:800;">{avg_pct:.1f}%</h2></div>""",
+            unsafe_allow_html=True)
+    with k2:
+        st.markdown(f"""<div style="{kpi_style}border-top:4px solid #28a745;">
+            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Top Woreda 🥇</p>
+            <h3 style="color:#28a745;font-size:1rem;margin:8px 0 0;font-weight:800;">{top_row['woreda_name']}</h3>
+            <p style="color:#28a745;margin:4px 0 0;font-weight:700;">{top_row['percentage']:.1f}%</p></div>""",
+            unsafe_allow_html=True)
+    with k3:
+        st.markdown(f"""<div style="{kpi_style}border-top:4px solid #dc3545;">
+            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Lowest Woreda</p>
+            <h3 style="color:#dc3545;font-size:1rem;margin:8px 0 0;font-weight:800;">{bot_row['woreda_name']}</h3>
+            <p style="color:#dc3545;margin:4px 0 0;font-weight:700;">{bot_row['percentage']:.1f}%</p></div>""",
+            unsafe_allow_html=True)
+    with k4:
+        st.markdown(f"""<div style="{kpi_style}border-top:4px solid #7c3aed;">
+            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Woredas with Data</p>
+            <h2 style="color:#7c3aed;font-size:2rem;margin:8px 0 0;font-weight:800;">{filled}/{len(WOREDAS)}</h2></div>""",
+            unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    tab1, tab2, tab3 = st.tabs(["🏆 Rankings", "📊 Charts", "📋 Full Data"])
     with tab1:
-        admin_dashboard()
-    
+        render_ranking_table(ranked)
     with tab2:
-        st.subheader("✏️ Edit Performance Data")
-        
-        # Get all data
-        df = get_performance_data()
-        
-        if not df.empty:
-            # Select record to edit
-            record_id = st.selectbox(
-                "Select Record to Edit",
-                options=df['id'].tolist(),
-                format_func=lambda x: f"ID: {x} - {df[df['id']==x]['woreda_name'].iloc[0]} - {df[df['id']==x]['department'].iloc[0]}"
-            )
-            
-            if record_id:
-                record = df[df['id'] == record_id].iloc[0]
-                
-                st.write(f"**Editing:** {record['woreda_name']} - {record['department']}")
-                
-                # Edit form
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    new_medical = st.number_input("Medical Service", value=float(record['medical_service']))
-                    new_rmh = st.number_input("RMH", value=float(record['rmh']))
-                    new_pharmacy = st.number_input("Pharmacy & Logistic", value=float(record['pharmacy_logistic']))
-                    new_ultrasound = st.number_input("Ultrasound", value=float(record['ultrasound']))
-                    new_apts = st.number_input("APTS", value=float(record['apts']))
-                    new_community_pharmacy = st.number_input("Community Pharmacy", value=float(record['community_pharmacy']))
-                    new_dm_test = st.number_input("DM Test", value=float(record['dm_test']))
-                    new_epi = st.number_input("EPI", value=float(record['epi']))
-                    new_child_health = st.number_input("Child Health", value=float(record['child_health']))
-                    new_tb_leprosy = st.number_input("TB & Leprosy", value=float(record['tb_leprosy']))
-                    new_phem = st.number_input("PHEM", value=float(record['phem']))
-                
-                with col2:
-                    new_cbhi = st.number_input("CBHI", value=float(record['cbhi']))
-                    new_finance = st.number_input("Finance", value=float(record['finance']))
-                    new_plan = st.number_input("Plan", value=float(record['plan']))
-                    new_wt = st.number_input("WT", value=float(record['wt']))
-                    new_full_emr = st.number_input("Full EMR", value=float(record['full_emr']))
-                    new_epi_modernization = st.number_input("EPI Modernization", value=float(record['epi_modernization']))
-                    new_zero_dose = st.number_input("Zero Dose", value=float(record['zero_dose']))
-                    new_multi_sectoral = st.number_input("Multi-Sectoral", value=float(record['multi_sectoral']))
-                    new_cash_program = st.number_input("Cash Program", value=float(record['cash_program']))
-                    new_hygiene = st.number_input("Hygiene & Sanitation", value=float(record['hygiene_sanitation']))
-                
-                col1, col2, col3 = st.columns(3)
-                with col2:
-                    if st.button("Update Record", use_container_width=True):
-                        updated_data = {
-                            'medical_service': new_medical, 'rmh': new_rmh, 'pharmacy_logistic': new_pharmacy,
-                            'ultrasound': new_ultrasound, 'apts': new_apts, 'community_pharmacy': new_community_pharmacy,
-                            'dm_test': new_dm_test, 'epi': new_epi, 'child_health': new_child_health,
-                            'tb_leprosy': new_tb_leprosy, 'phem': new_phem, 'cbhi': new_cbhi,
-                            'finance': new_finance, 'plan': new_plan, 'wt': new_wt,
-                            'full_emr': new_full_emr, 'epi_modernization': new_epi_modernization,
-                            'zero_dose': new_zero_dose, 'multi_sectoral': new_multi_sectoral,
-                            'cash_program': new_cash_program, 'hygiene_sanitation': new_hygiene
-                        }
-                        save_performance_data(record['woreda_name'], record['department'], updated_data, st.session_state.username)
-                        st.success("Record updated successfully!")
-                        st.rerun()
-                    
-                    if st.button("Delete Record", use_container_width=True):
-                        conn = sqlite3.connect('healthcare_performance.db')
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM performance_data WHERE id = ?", (record_id,))
-                        conn.commit()
-                        conn.close()
-                        st.success("Record deleted successfully!")
-                        st.rerun()
-        
-        # Show all data
-        st.subheader("📋 All Performance Data")
-        st.dataframe(df, use_container_width=True)
-    
+        render_charts(ranked, df)
     with tab3:
-        st.subheader("👥 User Management")
-        st.info("User management features can be added here")
+        render_full_table_readonly(df)
 
-# Main application
+    footer()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────────────────────
 def main():
-    # Initialize database
-    init_db()
-    
-    # Add full screen CSS
-    st.markdown("""
-    <style>
-    /* Full screen width */
-    .main .block-container {
-        max-width: 100% !important;
-        padding: 2rem 1rem !important;
-    }
-    
-    /* Remove sidebar padding */
-    .css-1d391kg {
-        padding: 0rem !important;
-    }
-    
-    /* Full width for content */
-    .stApp {
-        max-width: 100% !important;
-    }
-    
-    /* Make tables full width */
-    .dataframe {
-        width: 100% !important;
-    }
-    
-    /* Make charts full width */
-    .js-plotly-plot {
-        width: 100% !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Initialize session state
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-    if 'username' not in st.session_state:
-        st.session_state.username = ""
-    if 'role' not in st.session_state:
-        st.session_state.role = ""
-    if 'department' not in st.session_state:
-        st.session_state.department = ""
-    if 'current_view' not in st.session_state:
-        st.session_state.current_view = "Data Entry"
-    
-    # Check authentication
-    if not st.session_state.authenticated:
+    init_data_file()
+
+    if not st.session_state.get('authenticated', False):
         login_page()
-    else:
-        # Sidebar with navigation and logout
-        with st.sidebar:
-            st.title("🏥 Navigation")
-            st.write(f"**Logged in as:** {st.session_state.username}")
-            st.write(f"**Role:** {st.session_state.role}")
-            if st.session_state.department:
-                st.write(f"**Department:** {st.session_state.department}")
-            
-            st.markdown("---")
-            
-            # Show current form
-            st.info(f"📝 **Current Form:** {st.session_state.current_view}")
-            
-            # Navigation options based on role
-            if st.session_state.role == 'Department Head':
-                # Department heads only see data entry
-                st.session_state.current_view = "Data Entry"
-                st.info("Only Data Entry available for Department Heads")
-                
-            elif st.session_state.role == 'Admin':
-                # Admin can switch between data entry and dashboard
-                view_options = ["Data Entry", "Report"]
-                selected_view = st.selectbox("Select View", view_options, index=0 if st.session_state.current_view == "Data Entry" else 1)
-                st.session_state.current_view = selected_view
-                
-            elif st.session_state.role == 'Super Admin':
-                # Super Admin has all options
-                view_options = ["Data Entry", "Report", "Edit Data", "User Management"]
-                selected_view = st.selectbox("Select View", view_options, index=["Data Entry", "Report", "Edit Data", "User Management"].index(st.session_state.current_view) if st.session_state.current_view in ["Data Entry", "Report", "Edit Data", "User Management"] else 0)
-                st.session_state.current_view = selected_view
-            
-            st.markdown("---")
-            
-            # Logout button
-            if st.button("🚪 Logout", use_container_width=True):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.success("Logged out successfully!")
-                st.rerun()
-        
-        # Main content based on role and current view
-        if st.session_state.role == 'Department Head':
-            department_head_interface(st.session_state.department, st.session_state.username)
-            
-        elif st.session_state.role == 'Admin':
-            if st.session_state.current_view == "Data Entry":
-                st.info("As Admin, you can enter data for any department. Please select a department:")
-                # Allow admin to enter data for any department
-                departments = [
-                    "Cash", "EPI", "DM Test", "Ultrasound",
-                    "Community Pharmacy", "Zero Dose", "Full EMR", "APTS", "RMH",
-                    "Child Health", "EPI", "TB & Leprosy", "Hayine & Sanitation", "HIV & STI",
-                    "Pharmacy & Logistic", "Medical Service", "PHEM", "Multi-Sectoral",
-                    "CBHI", "Finance", "Plan", "WT"
-                ]
-                selected_dept = st.selectbox("Select Department for Data Entry", departments)
-                if selected_dept:
-                    department_head_interface(selected_dept, st.session_state.username)
-            elif st.session_state.current_view == "Report":
-                admin_dashboard()
-                
-        elif st.session_state.role == 'Super Admin':
-            if st.session_state.current_view == "Data Entry":
-                st.info("As Super Admin, you can enter data for any department:")
-                departments = [
-                    "Cash", "EPI", "DM Test", "Ultrasound",
-                    "Community Pharmacy", "Zero Dose", "Full EMR", "APTS", "RMH",
-                    "Child Health", "EPI", "TB & Leprosy", "Hayine & Sanitation", "HIV & STI",
-                    "Pharmacy & Logistic", "Medical Service", "PHEM", "Multi-Sectoral",
-                    "CBHI", "Finance", "Plan", "WT"
-                ]
-                selected_dept = st.selectbox("Select Department for Data Entry", departments)
-                if selected_dept:
-                    department_head_interface(selected_dept, st.session_state.username)
-            elif st.session_state.current_view == "Report":
-                admin_dashboard()
-                
+        return
+
+    render_sidebar()
+
+    role = st.session_state.role
+    view = st.session_state.get('view', 'Dashboard')
+
+    if role == 'Dept Head':
+        dept_head_view()
+
+    elif role == 'Admin':
+        dashboard_view()
+
+    elif role == 'Super Admin':
+        if view == 'Edit Data':
+            render_edit_view()
+        else:
+            dashboard_view()
+
+
 if __name__ == "__main__":
     main()
