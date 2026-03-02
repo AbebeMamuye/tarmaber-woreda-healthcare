@@ -6,6 +6,7 @@ import base64
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+from st_supabase_connection import SupabaseConnection
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGO HELPER
@@ -226,9 +227,8 @@ def verify_user(username: str, password: str):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DATA LAYER  (Excel / CSV)
+# DATA LAYER (Supabase Cloud Storage)
 # ─────────────────────────────────────────────────────────────────────────────
-# QUARTER LOGIC
 QUARTERS = [
     "Q1 (Hamle - Meskerem)",
     "Q2 (Tikmt - Tahsas)",
@@ -237,91 +237,109 @@ QUARTERS = [
 ]
 YEARS = ["2016", "2017", "2018", "2019", "2020", "2021"]
 
-def init_data_file():
-    os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
-    if not os.path.exists(DATA_FILE):
-        # Create an empty template with Year and Quarter
-        rows = []
-        for year in YEARS:
-            for q in QUARTERS:
-                for w in WOREDAS:
-                    row = {'woreda_name': w, 'year': year, 'quarter': q}
-                    for ind in INDICATORS:
-                        row[ind['col']] = 0.0
-                    row['total_score'] = 0.0
-                    row['percentage'] = 0.0
-                    row['last_updated'] = ''
-                    rows.append(row)
-        df = pd.DataFrame(rows)
-        save_data(df)
+def get_db_connection():
+    try:
+        return st.connection("supabase", type=SupabaseConnection)
+    except Exception:
+        return None
 
-
-def load_data() -> pd.DataFrame:
-    init_data_file()
-    df = pd.read_excel(DATA_FILE)
+def recalculate(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty: return df
+    cols = [i['col'] for i in INDICATORS if i['col'] in df.columns]
+    # Ensure all indicator columns are numeric
+    for c in cols:
+        df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
     
-    # Clean string columns to ensure robust deduplication
+    df['total_score'] = df[cols].sum(axis=1).round(2)
+    df['percentage'] = (df['total_score'] / TOTAL_MAX * 100).round(2)
+    
+    perf_values = []
+    for i in INDICATORS:
+        ach = (df[i['col']] / i['max'] * 100)
+        perf_values.append(ach)
+    
+    perf_matrix = pd.concat(perf_values, axis=1)
+    df['avg_indicator_perf'] = perf_matrix.mean(axis=1).round(2)
+    return df
+
+def cleanup_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Standardize dataframe structure."""
     df['woreda_name'] = df['woreda_name'].astype(str).str.strip()
     df['year']        = df['year'].astype(str).str.strip()
     df['quarter']     = df['quarter'].astype(str).str.strip()
     
-    # Deduplicate early
-    df = df.drop_duplicates(subset=['woreda_name', 'year', 'quarter'])
-    
-    # Add any missing indicator columns
+    # Add missing indicators
     for ind in INDICATORS:
         if ind['col'] not in df.columns:
             df[ind['col']] = 0.0
+    
     for c in ('total_score', 'percentage', 'avg_indicator_perf', 'last_updated'):
         if c not in df.columns:
             df[c] = '' if c == 'last_updated' else 0.0
-    
-    # Ensure all 23 woredas exist for the periods already in the file
-    # This is a safety check in case the file was partially initialized or corrupted
-    periods = df[['year', 'quarter']].drop_duplicates()
-    for _, p in periods.iterrows():
-        existing_w = set(df[(df['year'] == p['year']) & (df['quarter'] == p['quarter'])]['woreda_name'])
-        missing_w = [w for w in WOREDAS if w not in existing_w]
-        if missing_w:
-            new_rows = []
-            for mw in missing_w:
-                nr = {'woreda_name': mw, 'year': p['year'], 'quarter': p['quarter']}
-                for ind in INDICATORS: nr[ind['col']] = 0.0
-                nr['total_score'] = 0.0
-                nr['percentage'] = 0.0
-                nr['avg_indicator_perf'] = 0.0
-                nr['last_updated'] = ''
-                new_rows.append(nr)
-            df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
-
+            
     df.fillna(0.0, inplace=True)
     return df
 
-
-def recalculate(df: pd.DataFrame) -> pd.DataFrame:
-    cols = [i['col'] for i in INDICATORS if i['col'] in df.columns]
-    df['total_score'] = df[cols].sum(axis=1).round(2)
-    # Global percentage (Total / 110)
-    df['percentage'] = (df['total_score'] / TOTAL_MAX * 100).round(2)
-    
-    # Average Indicator Performance Percentage (Mean of Achievements)
-    perf_values = []
-    for i in INDICATORS:
-        # Calculate achievement rate for each indicator (Score / Max)
-        ach = (df[i['col']] / i['max'] * 100)
-        perf_values.append(ach)
-    
-    # Average across all indicator achievement rates
-    perf_matrix = pd.concat(perf_values, axis=1)
-    df['avg_indicator_perf'] = perf_matrix.mean(axis=1).round(2)
-    
+def init_db():
+    """Initial load if database is empty."""
+    rows = []
+    for year in YEARS:
+        for q in QUARTERS:
+            for w in WOREDAS:
+                row = {'woreda_name': w, 'year': year, 'quarter': q}
+                for ind in INDICATORS:
+                    row[ind['col']] = 0.0
+                row['total_score'] = 0.0
+                row['percentage'] = 0.0
+                row['avg_indicator_perf'] = 0.0
+                row['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
+                rows.append(row)
+    df = pd.DataFrame(rows)
+    save_data(df)
     return df
 
+def load_data() -> pd.DataFrame:
+    conn = get_db_connection()
+    if not conn:
+        st.warning("⚠️ Database connection not configured. Please check Streamlit Secrets.")
+        return pd.DataFrame(columns=['woreda_name', 'year', 'quarter'] + [i['col'] for i in INDICATORS])
+    
+    try:
+        # Try to fetch from table 'performance_data'
+        res = conn.table("performance_data").select("*").execute()
+        if not res.data or len(res.data) == 0:
+            return init_db()
+        
+        df = pd.DataFrame(res.data)
+        # Drop Supabase internal 'id' column if it exists to avoid confusion in calc
+        if 'id' in df.columns:
+            df = df.drop(columns=['id'])
+            
+        return cleanup_df(df)
+    except Exception as e:
+        st.error(f"❌ Could not connect to database table. Ensure you ran the SQL Setup. Error: {e}")
+        return pd.DataFrame()
 
 def save_data(df: pd.DataFrame):
+    conn = get_db_connection()
+    if not conn: return
+    
+    # Recalculate totals before saving
     df = recalculate(df)
-    df.to_excel(DATA_FILE, index=False)
+    
+    # Convert to list of dicts for Supabase
+    records = df.to_dict('records')
+    
+    try:
+        # Upsert based on natural primary key (woreda, year, quarter)
+        # In Supabase, you must ensure these 3 columns have a UNIQUE constraint
+        conn.table("performance_data").upsert(records, on_conflict="woreda_name,year,quarter").execute()
+    except Exception as e:
+        st.error(f"Failed to save data to cloud: {e}")
 
+def init_data_file():
+    """No-op for compatibility with other parts of the script."""
+    pass
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UI HELPERS
