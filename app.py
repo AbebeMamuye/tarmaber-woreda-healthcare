@@ -1169,8 +1169,11 @@ def dashboard_view():
 
     df = recalculate(df)
 
-    ranked = df.sort_values('avg_indicator_perf', ascending=False).reset_index(drop=True)
-    ranked['rank'] = range(1, len(ranked) + 1)
+    # Sort primarily by performance, and alphabetically as a fallback
+    ranked = df.sort_values(['avg_indicator_perf', 'woreda_name'], ascending=[False, True]).reset_index(drop=True)
+    
+    # Calculate ranks properly (Min rank means ties get the same number, e.g., 1, 1, 1, 4)
+    ranked['rank'] = ranked['avg_indicator_perf'].rank(method='min', ascending=False).astype(int)
 
     # KPI row
     avg_pct   = ranked['avg_indicator_perf'].mean()
