@@ -254,7 +254,7 @@ YEARS = ["2016", "2017", "2018", "2019", "2020", "2021"]
 
 def get_db_connection():
     try:
-        return st.connection("supabase", type=SupabaseConnection)
+        return st.connection("supabase", type=SupabaseConnection, url="https://xjbntmsacknqmymvxoig.supabase.co")
     except Exception as e:
         st.error(f"Connection Debug Error: {e}")
         return None
