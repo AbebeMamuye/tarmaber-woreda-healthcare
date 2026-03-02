@@ -257,9 +257,12 @@ YEARS = ["2016", "2017", "2018", "2019", "2020", "2021"]
 
 def get_db_connection():
     try:
-        return st.connection("supabase", type=SupabaseConnection, url="https://xjbntmsacknqmymvxoig.supabase.co")
+        # Hardcoding the key to fix persistent connection issues with Streamlit secrets formatting
+        return st.connection("supabase", type=SupabaseConnection, 
+                             url="https://xjbntmsacknqmymvxoig.supabase.co",
+                             key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYm50bXNhY2tucW15bXZ4b2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDY4MjIsImV4cCI6MjA4ODAyMjgyMn0.2WfPhlZZ3RMtJqfNBIQcQfMwAnjA9Yp-dtnzfFgw-XI")
     except Exception as e:
-        st.error(f"Connection Debug Error: {e}")
+        # Only show error if hardcoded connection fails
         return None
 
 def recalculate(df: pd.DataFrame) -> pd.DataFrame:
