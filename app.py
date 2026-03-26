@@ -288,16 +288,23 @@ def recalculate(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def cleanup_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Standardize dataframe structure."""
+    """Standardize dataframe structure, ensuring all required columns exist."""
+    # 1. Ensure core columns exist
+    for c in ['woreda_name', 'year', 'quarter']:
+        if c not in df.columns:
+            df[c] = ""
+    
+    # 2. Standardize core column types
     df['woreda_name'] = df['woreda_name'].astype(str).str.strip()
     df['year']        = df['year'].astype(str).str.strip()
     df['quarter']     = df['quarter'].astype(str).str.strip()
     
-    # Add missing indicators
+    # 3. Add missing indicators
     for ind in INDICATORS:
         if ind['col'] not in df.columns:
             df[ind['col']] = 0.0
     
+    # 4. Add summary columns
     for c in ('total_score', 'percentage', 'avg_indicator_perf', 'last_updated'):
         if c not in df.columns:
             df[c] = '' if c == 'last_updated' else 0.0
@@ -336,14 +343,23 @@ def load_data() -> pd.DataFrame:
             return init_db()
         
         df = pd.DataFrame(res.data)
+        
+        # If the resulting DataFrame has a RangeIndex (integer columns), something is wrong.
+        # This can happen if res.data is not a list of dicts.
+        if isinstance(df.columns, pd.RangeIndex):
+             # Fallback to skeleton if data is malformed
+             st.error("⚠️ Loaded data is malformed (missing headers). Reverting to default view.")
+             return pd.DataFrame(columns=['woreda_name', 'year', 'quarter'] + [i['col'] for i in INDICATORS])
+
         # Drop Supabase internal 'id' column if it exists to avoid confusion in calc
         if 'id' in df.columns:
             df = df.drop(columns=['id'])
             
         return cleanup_df(df)
     except Exception as e:
-        st.error(f"❌ Could not connect to database table. Ensure you ran the SQL Setup. Error: {e}")
-        return pd.DataFrame()
+        st.error(f"❌ Database error: {e}")
+        # ALWAYS return a skeleton to avoid KeyError later
+        return pd.DataFrame(columns=['woreda_name', 'year', 'quarter'] + [i['col'] for i in INDICATORS])
 
 def save_data(df: pd.DataFrame):
     conn = get_db_connection()
@@ -573,6 +589,9 @@ def dept_head_view():
                 f"Logged in as: {username}  |  Department: {dept_name}")
 
     df = load_data()
+    if df is None or not isinstance(df, pd.DataFrame) or 'woreda_name' not in df.columns:
+        st.error("❌ Data structure is invalid. Please contact the administrator.")
+        return
 
     # ── PERIOD SELECTION ──────────────────────────────────────────────────────
     st.markdown("""
@@ -1091,6 +1110,9 @@ def render_full_table_readonly(df: pd.DataFrame):
 def render_edit_view():
     page_header("✏️ Edit Performance Data", "Super Admin — Full Edit Access")
     df = load_data()
+    if df.empty and 'woreda_name' not in df.columns:
+        st.error("❌ Database connection error (KeyError). Performance data could not be loaded.")
+        return
     sel_year = st.session_state.get('filter_year', "2018")
     sel_q    = st.session_state.get('filter_quarter', QUARTERS[2])
     
@@ -1154,6 +1176,9 @@ def dashboard_view():
     page_header("📈 Performance Dashboard",
                 f"{'View-only' if role == 'Admin' else 'Super Admin'} — Healthcare Rankings")
     df = load_data()
+    if df.empty and 'woreda_name' not in df.columns:
+        st.error("❌ Database connection error (KeyError). Dashboard could not be loaded.")
+        return
     sel_year = st.session_state.get('filter_year', "2018")
     sel_q    = st.session_state.get('filter_quarter', QUARTERS[2])
     
