@@ -3,6 +3,4 @@ pandas
 plotly
 openpyxl
 st-supabase-connection
-psycopg2-binary
-sqlalchemy
 python-dotenv
