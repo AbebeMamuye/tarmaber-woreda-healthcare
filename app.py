@@ -6,7 +6,11 @@ import base64
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
-from st_supabase_connection import SupabaseConnection
+from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
+
+# Load .env if it exists
+load_dotenv()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGO HELPER
@@ -258,13 +262,50 @@ QUARTERS = [
 YEARS = ["2016", "2017", "2018", "2019", "2020", "2021"]
 
 def get_db_connection():
+    """Get Neon/Postgres connection with detailed user-friendly debugging."""
+    db_url = st.secrets.get("DATABASE_URL") or os.getenv("DATABASE_URL")
+    
+    if not db_url:
+        st.error("❌ **DATABASE_URL Missing!** Please add it to your Streamlit Cloud Secrets or .env file.")
+        st.info("Example: `DATABASE_URL = \"postgresql://user:pass@ep-cool-id.us-east-2.aws.neon.tech/neondb\"`")
+        return None
+
+    # Common Mistake Check: Supabase URL instead of Neon
+    if db_url.startswith("https://"):
+        st.error("❌ **Invalid Database URL Format!** You are using an HTTPS URL (likely Supabase).")
+        st.info("Neon/Postgres URLs must start with `postgresql://` or `postgres://`.")
+        return None
+
     try:
-        # Hardcoding the key to fix persistent connection issues with Streamlit secrets formatting
-        return st.connection("supabase", type=SupabaseConnection, 
-                             url="https://xjbntmsacknqmymvxoig.supabase.co",
-                             key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYm50bXNhY2tucW15bXZ4b2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDY4MjIsImV4cCI6MjA4ODAyMjgyMn0.2WfPhlZZ3RMtJqfNBIQcQfMwAnjA9Yp-dtnzfFgw-XI")
+        # Neon connection URLs often need sslmode=require
+        if "sslmode" not in db_url:
+            separator = "&" if "?" in db_url else "?"
+            db_url += f"{separator}sslmode=require"
+        
+        # We use a short timeout (10s) to avoid app hanging
+        engine = create_engine(db_url, pool_pre_ping=True, connect_args={'connect_timeout': 10})
+        return engine
     except Exception as e:
-        # Only show error if hardcoded connection fails
+        st.error(f"❌ **Database Connection Failed:** {e}")
+        if "Name or service not known" in str(e):
+            st.warning("⚠️ **DNS Error:** The database address (hostname) could not be found. Please check for typos in your DATABASE_URL.")
+        return None
+
+def execute_query(query, params=None, is_select=True):
+    engine = get_db_connection()
+    if not engine:
+        return None
+    try:
+        with engine.connect() as conn:
+            if is_select:
+                result = conn.execute(text(query), params or {})
+                return pd.DataFrame(result.mappings().all())
+            else:
+                conn.execute(text(query), params or {})
+                conn.commit()
+                return True
+    except Exception as e:
+        print(f"Query Error: {e}")
         return None
 
 def recalculate(df: pd.DataFrame) -> pd.DataFrame:
