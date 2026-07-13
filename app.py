@@ -448,21 +448,40 @@ def load_data() -> pd.DataFrame:
         return pd.DataFrame(columns=['woreda_name', 'year', 'quarter'] + [i['col'] for i in INDICATORS])
 
 def save_data(df: pd.DataFrame):
-    conn = get_db_connection()
-    if not conn: return
-    
     # Recalculate totals before saving
     df = recalculate(df)
+    
+    # 1. Save to Local Excel Backup
+    try:
+        os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
+        df.to_excel(DATA_FILE, index=False)
+    except Exception as e:
+        print(f"Failed to save local Excel backup: {e}")
+        
+    # 2. Save to Local SQLite Backup
+    try:
+        local_db = os.path.join(os.path.dirname(__file__), 'healthcare_performance.db')
+        sqlite_conn = sqlite3.connect(local_db)
+        df.to_sql("performance_data", sqlite_conn, if_exists="replace", index=False)
+        sqlite_conn.close()
+    except Exception as e:
+        print(f"Failed to save local SQLite backup: {e}")
+
+    # 3. Save to Supabase Cloud
+    conn = get_db_connection()
+    if conn is None or conn == "PAUSED":
+        st.warning("⚠️ **Saved to Local Backup:** Cloud database is currently offline or paused. Your changes are saved locally.")
+        return
     
     # Convert to list of dicts for Supabase
     records = df.to_dict('records')
     
     try:
         # Upsert based on natural primary key (woreda, year, quarter)
-        # In Supabase, you must ensure these 3 columns have a UNIQUE constraint
         conn.table("performance_data").upsert(records, on_conflict="woreda_name,year,quarter").execute()
     except Exception as e:
-        st.error(f"Failed to save data to cloud: {e}")
+        st.error(f"Failed to sync data to cloud: {e}")
+        st.warning("⚠️ **Note:** Your changes were saved locally, but could not sync to cloud.")
 
 def init_data_file():
     """No-op for compatibility with other parts of the script."""
@@ -816,8 +835,8 @@ def dept_head_view():
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         
         save_data(df)
-        st.success(f"✅ {col_label} data saved for {sel_year} {sel_q}!")
-        st.balloons()
+        st.session_state.success_msg = f"✅ {col_label} data saved for {sel_year} {sel_q}!"
+        st.session_state.show_balloons = True
         st.rerun()
 
     # ── Summary table (HTML for BOLD BORDERS) ─────────────────────────────────
@@ -1248,7 +1267,7 @@ def render_edit_view():
                 df.loc[mask, col_key] = val
                 df.loc[mask, 'last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
         save_data(df)
-        st.success(f"✅ {chosen_label} data updated successfully!")
+        st.session_state.success_msg = f"✅ {chosen_label} data updated successfully!"
         st.rerun()
 
     footer()
@@ -1343,6 +1362,14 @@ def main():
         return
 
     render_sidebar()
+
+    # Persistent Toast/Success notification handler
+    if st.session_state.get('success_msg'):
+        st.success(st.session_state.success_msg)
+        if st.session_state.get('show_balloons'):
+            st.balloons()
+            del st.session_state['show_balloons']
+        del st.session_state['success_msg']
 
     role = st.session_state.role
     view = st.session_state.get('view', 'Dashboard')
