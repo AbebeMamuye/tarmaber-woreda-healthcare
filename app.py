@@ -153,7 +153,7 @@ WOREDAS = [
 ]
 
 INDICATORS = [
-    # Medical & Pharmacy (37.5 pts)
+    # Medical & Pharmacy (40.0 pts)
     {'col': 'medical_service',    'label': 'Medical Service',      'max': 15.0, 'cat': 'Medical & Pharmacy'},
     {'col': 'rmh',                'label': 'RMH',                  'max': 10.0, 'cat': 'Medical & Pharmacy'},
     {'col': 'pharmacy_logistic',  'label': 'Pharmacy & Logistic',  'max':  5.0, 'cat': 'Medical & Pharmacy'},
@@ -171,12 +171,12 @@ INDICATORS = [
     {'col': 'finance',            'label': 'Finance',              'max':  5.0, 'cat': 'Admin & Finance'},
     {'col': 'plan',               'label': 'Plan',                 'max':  5.0, 'cat': 'Admin & Finance'},
     {'col': 'wt',                 'label': 'WT',                   'max':  5.0, 'cat': 'Admin & Finance'},
-    # Innovation & Quality (22.5 pts)
+    # Innovation & Quality (25.0 pts)
     {'col': 'full_emr',           'label': 'Full EMR',             'max':  5.0, 'cat': 'Innovation & Quality'},
-    {'col': 'epi_modernization',  'label': 'EPI Modernization',    'max':  5.0, 'cat': 'Innovation & Quality'},
-    {'col': 'zero_dose',          'label': 'Zero Dose',            'max':  5.0, 'cat': 'Innovation & Quality'},
+    {'col': 'epi_modernization',  'label': 'EPI Modernization',    'max':  2.5, 'cat': 'Innovation & Quality'},
+    {'col': 'zero_dose',          'label': 'Zero Dose',            'max':  2.5, 'cat': 'Innovation & Quality'},
     {'col': 'multi_sectoral',     'label': 'Multi-Sectoral',       'max':  2.5, 'cat': 'Innovation & Quality'},
-    {'col': 'cash_program',       'label': 'Cash Program',         'max':  5.0, 'cat': 'Innovation & Quality'},
+    {'col': 'cash_program',       'label': 'Cash Program',         'max':  2.5, 'cat': 'Innovation & Quality'},
     {'col': 'hygiene_sanitation', 'label': 'Hygiene & Sanitation', 'max':  5.0, 'cat': 'Innovation & Quality'},
     {'col': 'hiv_sti',            'label': 'HIV/STI',              'max':  5.0, 'cat': 'Innovation & Quality'},
 ]
@@ -305,15 +305,10 @@ def recalculate(df: pd.DataFrame) -> pd.DataFrame:
     
     df['total_score'] = df[cols].sum(axis=1).round(2)
     
-    perf_values = []
-    for i in INDICATORS:
-        ach = (df[i['col']] / i['max'] * 100)
-        perf_values.append(ach)
-    
-    perf_matrix = pd.concat(perf_values, axis=1)
-    # Unified Performance: Average Achievement Rate of all indicators
-    df['avg_indicator_perf'] = perf_matrix.mean(axis=1).round(2)
-    df['percentage'] = df['avg_indicator_perf'] # Ensure consistency everywhere
+    # Weighted achievement percentage (out of TOTAL_MAX)
+    overall_percentage = (df['total_score'] / TOTAL_MAX * 100).round(2)
+    df['avg_indicator_perf'] = overall_percentage
+    df['percentage'] = overall_percentage
     return df
 
 def cleanup_df(df: pd.DataFrame) -> pd.DataFrame:
