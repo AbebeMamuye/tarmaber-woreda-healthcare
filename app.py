@@ -82,7 +82,17 @@ a[href*="share.streamlit.io/user/"],
 html, body, [class*="css"] { font-weight: 600 !important; }
 
 /* Make all selectbox text and select dropdown text black */
-div[data-baseweb="select"] *, ul[role="listbox"] * {
+div[data-baseweb="select"] {
+    background-color: #ffffff !important;
+    border-radius: 8px !important;
+}
+div[data-baseweb="select"] * {
+    color: #000000 !important;
+}
+ul[role="listbox"] {
+    background-color: #ffffff !important;
+}
+ul[role="listbox"] * {
     color: #000000 !important;
 }
 
@@ -91,17 +101,14 @@ div[data-baseweb="select"] *, ul[role="listbox"] * {
     background: linear-gradient(180deg, #0a1628 0%, #1a3a5c 100%) !important;
     border-right: 3px solid #1f77b4;
 }
-[data-testid="stSidebar"] * { color: white !important; font-weight: 700 !important; }
-
-/* Sidebar selectboxes — force WHITE background + BLACK text */
-[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"],
-[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] *,
-[data-testid="stSidebar"] div[data-baseweb="select"],
-[data-testid="stSidebar"] div[data-baseweb="select"] *,
-[data-testid="stSidebar"] [data-testid="stSelectbox"] div,
-[data-testid="stSidebar"] [data-testid="stSelectbox"] span {
-    color: #000000 !important;
-    background-color: #ffffff !important;
+[data-testid="stSidebar"] label, 
+[data-testid="stSidebar"] p, 
+[data-testid="stSidebar"] h1, 
+[data-testid="stSidebar"] h2, 
+[data-testid="stSidebar"] h3, 
+[data-testid="stSidebar"] span.stText { 
+    color: #ffffff !important; 
+    font-weight: 700 !important; 
 }
 [data-testid="stSidebar"] .stRadio > label { color: rgba(255,255,255,0.7) !important; font-size: 0.85rem !important; }
 [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.3) !important; border-width: 2px !important; }
