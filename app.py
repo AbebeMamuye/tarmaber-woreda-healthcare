@@ -271,18 +271,6 @@ def get_db_connection():
         url = os.getenv("SUPABASE_URL") or "https://xjbntmsacknqmymvxoig.supabase.co"
         key = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYm50bXNhY2tucW15bXZ4b2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDY4MjIsImV4cCI6MjA4ODAyMjgyMn0.2WfPhlZZ3RMtJqfNBIQcQfMwAnjA9Yp-dtnzfFgw-XI"
 
-    # Quick DNS check to see if project is "Paused"
-    try:
-        hostname = url.replace("https://", "").split("/")[0]
-        socket.gethostbyname(hostname)
-    except socket.gaierror:
-        st.error("🛑 **Database Project Paused or URL Invalid**")
-        st.warning("⚠️ The Supabase project at 'xjbntmsacknqmymvxoig' is currently **PAUSED** or unreachable.")
-        st.info("💡 **Action Required:** Please log in to your Supabase dashboard and **Resume** your project.")
-        return "PAUSED"
-    except Exception as e:
-        print(f"DNS Check Error: {e}")
-
     try:
         return st.connection("supabase", type=SupabaseConnection, 
                              url=url, key=key)
