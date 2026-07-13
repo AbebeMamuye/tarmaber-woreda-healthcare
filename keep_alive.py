@@ -27,13 +27,8 @@ from datetime import datetime
 # CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
 # Fallback credentials (same as app.py) — env vars take priority
-FALLBACK_URL = "https://xjbntmsacknqmymvxoig.supabase.co"
-FALLBACK_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYm50bXNhY2tucW15bXZ4b2lnIiwi"
-    "cm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDY4MjIsImV4cCI6MjA4ODAyMjgyMn0."
-    "2WfPhlZZ3RMtJqfNBIQcQfMwAnjA9Yp-dtnzfFgw-XI"
-)
+FALLBACK_URL = "https://etmvricanlatzhrwlsvx.supabase.co"
+FALLBACK_KEY = "sb_publishable_b1RPpHyaAA2_kXhiFame1A_O41Ds3IE"
 
 LOOP_INTERVAL_DAYS = 4          # Send heartbeat every 4 days (pause happens at 7)
 MAX_RETRIES        = 3          # Retry on failure

@@ -259,11 +259,11 @@ def get_db_connection():
     """Get Supabase connection with credentials provided by the user."""
     # Priority: st.secrets -> .env -> Hardcoded fallback
     try:
-        url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL") or "https://xjbntmsacknqmymvxoig.supabase.co"
-        key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYm50bXNhY2tucW15bXZ4b2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDY4MjIsImV4cCI6MjA4ODAyMjgyMn0.2WfPhlZZ3RMtJqfNBIQcQfMwAnjA9Yp-dtnzfFgw-XI"
+        url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL") or "https://etmvricanlatzhrwlsvx.supabase.co"
+        key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY") or "sb_publishable_b1RPpHyaAA2_kXhiFame1A_O41Ds3IE"
     except Exception:
-        url = os.getenv("SUPABASE_URL") or "https://xjbntmsacknqmymvxoig.supabase.co"
-        key = os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYm50bXNhY2tucW15bXZ4b2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDY4MjIsImV4cCI6MjA4ODAyMjgyMn0.2WfPhlZZ3RMtJqfNBIQcQfMwAnjA9Yp-dtnzfFgw-XI"
+        url = os.getenv("SUPABASE_URL") or "https://etmvricanlatzhrwlsvx.supabase.co"
+        key = os.getenv("SUPABASE_KEY") or "sb_publishable_b1RPpHyaAA2_kXhiFame1A_O41Ds3IE"
 
     try:
         return st.connection("supabase", type=SupabaseConnection, 
