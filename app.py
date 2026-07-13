@@ -92,8 +92,17 @@ div[data-baseweb="select"] *, ul[role="listbox"] * {
     border-right: 3px solid #1f77b4;
 }
 [data-testid="stSidebar"] * { color: white !important; font-weight: 700 !important; }
-/* EXCEPT for inputs which need dark text */
-[data-testid="stSidebar"] div[data-baseweb="select"] * { color: #0a1628 !important; }
+
+/* Sidebar selectboxes — force WHITE background + BLACK text */
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"],
+[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"] *,
+[data-testid="stSidebar"] div[data-baseweb="select"],
+[data-testid="stSidebar"] div[data-baseweb="select"] *,
+[data-testid="stSidebar"] [data-testid="stSelectbox"] div,
+[data-testid="stSidebar"] [data-testid="stSelectbox"] span {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}
 [data-testid="stSidebar"] .stRadio > label { color: rgba(255,255,255,0.7) !important; font-size: 0.85rem !important; }
 [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.3) !important; border-width: 2px !important; }
 
