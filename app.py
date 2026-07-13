@@ -322,21 +322,25 @@ def cleanup_df(df: pd.DataFrame) -> pd.DataFrame:
     df['year']        = df['year'].astype(str).str.strip()
     df['quarter']     = df['quarter'].astype(str).str.strip()
     
-    # 3. Add missing indicators and force numeric type
+    # 3. Add missing indicators and FORCE float64 dtype
     for ind in INDICATORS:
         if ind['col'] not in df.columns:
-            df[ind['col']] = 0.0
+            df[ind['col']] = pd.array([0.0] * len(df), dtype='float64')
         else:
-            df[ind['col']] = pd.to_numeric(df[ind['col']], errors='coerce').fillna(0.0)
+            df[ind['col']] = pd.to_numeric(df[ind['col']], errors='coerce').fillna(0.0).astype('float64')
     
-    # 4. Add summary columns
-    for c in ('total_score', 'percentage', 'avg_indicator_perf', 'last_updated'):
+    # 4. Add summary numeric columns, force float64
+    for c in ('total_score', 'percentage', 'avg_indicator_perf'):
         if c not in df.columns:
-            df[c] = '' if c == 'last_updated' else 0.0
-        elif c != 'last_updated':
-            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
-            
-    df.fillna(0.0, inplace=True)
+            df[c] = pd.array([0.0] * len(df), dtype='float64')
+        else:
+            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0).astype('float64')
+    
+    # 5. last_updated must stay string
+    if 'last_updated' not in df.columns:
+        df['last_updated'] = ''
+    df['last_updated'] = df['last_updated'].fillna('').astype(str)
+    
     return df
 
 def init_db():
@@ -830,12 +834,15 @@ def dept_head_view():
             )
 
     if save and not any_invalid:
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M')
         for woreda, val in inputs.items():
-            weighted_val = (val * col_max) / 100.0
+            weighted_val = float((val * col_max) / 100.0)
             mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
             if mask.any():
-                df.loc[mask, col_key] = weighted_val
-                df.loc[mask, 'last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
+                # Use .at[] row-by-row to avoid pandas dtype coercion errors
+                for idx in df.index[mask]:
+                    df.at[idx, col_key]       = weighted_val
+                    df.at[idx, 'last_updated'] = ts
             else:
                 new_row = {'woreda_name': woreda, 'year': sel_year, 'quarter': sel_q, col_key: weighted_val}
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
@@ -1267,11 +1274,13 @@ def render_edit_view():
             saved = st.form_submit_button(f"💾  Save {chosen_label}", use_container_width=True, type="primary")
 
     if saved:
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M')
         for woreda, val in inputs.items():
             mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
             if mask.any():
-                df.loc[mask, col_key] = val
-                df.loc[mask, 'last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
+                for idx in df.index[mask]:
+                    df.at[idx, col_key]        = float(val)
+                    df.at[idx, 'last_updated'] = ts
         save_data(df, year=sel_year, quarter=sel_q)
         st.session_state.success_msg = f"✅ {chosen_label} data updated successfully!"
         st.rerun()
