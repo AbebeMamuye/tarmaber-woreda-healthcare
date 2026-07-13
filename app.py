@@ -153,35 +153,36 @@ WOREDAS = [
 ]
 
 INDICATORS = [
-    # Medical & Pharmacy (40.0 pts)
-    {'col': 'medical_service',    'label': 'Medical Service',      'max': 15.0, 'cat': 'Medical & Pharmacy'},
-    {'col': 'rmh',                'label': 'RMH',                  'max': 10.0, 'cat': 'Medical & Pharmacy'},
-    {'col': 'pharmacy_logistic',  'label': 'Pharmacy & Logistic',  'max':  5.0, 'cat': 'Medical & Pharmacy'},
-    {'col': 'ultrasound',         'label': 'Ultrasound',           'max':  2.5, 'cat': 'Medical & Pharmacy'},
-    {'col': 'apts',               'label': 'APTS',                 'max':  2.5, 'cat': 'Medical & Pharmacy'},
-    {'col': 'community_pharmacy', 'label': 'Community Pharmacy',   'max':  2.5, 'cat': 'Medical & Pharmacy'},
-    {'col': 'dm_test',            'label': 'DM Test',              'max':  2.5, 'cat': 'Medical & Pharmacy'},
-    # Prevention & Disease (20 pts)
-    {'col': 'epi',                'label': 'EPI',                  'max':  5.0, 'cat': 'Prevention & Disease'},
-    {'col': 'child_health',       'label': 'Child Health',         'max':  5.0, 'cat': 'Prevention & Disease'},
-    {'col': 'tb_leprosy',         'label': 'TB & Leprosy',         'max':  5.0, 'cat': 'Prevention & Disease'},
-    {'col': 'phem',               'label': 'PHEM',                 'max':  5.0, 'cat': 'Prevention & Disease'},
-    # Admin & Finance (25 pts)
-    {'col': 'cbhi',               'label': 'CBHI',                 'max': 10.0, 'cat': 'Admin & Finance'},
-    {'col': 'finance',            'label': 'Finance',              'max':  5.0, 'cat': 'Admin & Finance'},
-    {'col': 'plan',               'label': 'Plan',                 'max':  5.0, 'cat': 'Admin & Finance'},
-    {'col': 'wt',                 'label': 'WT',                   'max':  5.0, 'cat': 'Admin & Finance'},
-    # Innovation & Quality (25.0 pts)
-    {'col': 'full_emr',           'label': 'Full EMR',             'max':  5.0, 'cat': 'Innovation & Quality'},
-    {'col': 'epi_modernization',  'label': 'EPI Modernization',    'max':  2.5, 'cat': 'Innovation & Quality'},
-    {'col': 'zero_dose',          'label': 'Zero Dose',            'max':  2.5, 'cat': 'Innovation & Quality'},
-    {'col': 'multi_sectoral',     'label': 'Multi-Sectoral',       'max':  2.5, 'cat': 'Innovation & Quality'},
-    {'col': 'cash_program',       'label': 'Cash Program',         'max':  2.5, 'cat': 'Innovation & Quality'},
-    {'col': 'hygiene_sanitation', 'label': 'Hygiene & Sanitation', 'max':  5.0, 'cat': 'Innovation & Quality'},
-    {'col': 'hiv_sti',            'label': 'HIV/STI',              'max':  5.0, 'cat': 'Innovation & Quality'},
+    # Routine KPI (79 pts)
+    {'col': 'wt',                 'label': 'WT',                   'max':  6.0, 'cat': 'Routine KPI'},
+    {'col': 'rmh',                'label': 'RMH',                  'max': 10.0, 'cat': 'Routine KPI'},
+    {'col': 'epi',                'label': 'EPI',                  'max':  3.0, 'cat': 'Routine KPI'},
+    {'col': 'child_health',       'label': 'Child Health',         'max':  7.0, 'cat': 'Routine KPI'},
+    {'col': 'nutrition',          'label': 'Nutrition',            'max':  4.0, 'cat': 'Routine KPI'},
+    {'col': 'tb',                 'label': 'TB',                   'max':  5.0, 'cat': 'Routine KPI'},
+    {'col': 'hiv',                'label': 'HIV',                  'max':  4.0, 'cat': 'Routine KPI'},
+    {'col': 'msr',                'label': 'MSR',                  'max':  3.0, 'cat': 'Routine KPI'},
+    {'col': 'medical_service',    'label': 'Medical Service',      'max':  5.0, 'cat': 'Routine KPI'},
+    {'col': 'ncd',                'label': 'NCD',                  'max':  4.0, 'cat': 'Routine KPI'},
+    {'col': 'hygiene',            'label': 'Hygiene',              'max':  5.0, 'cat': 'Routine KPI'},
+    {'col': 'phem',               'label': 'PHEM',                 'max':  3.0, 'cat': 'Routine KPI'},
+    {'col': 'pharmacy',           'label': 'Pharmacy',             'max':  4.0, 'cat': 'Routine KPI'},
+    {'col': 'hmis',               'label': 'HMIS',                 'max':  4.0, 'cat': 'Routine KPI'},
+    {'col': 'hr',                 'label': 'HR',                   'max':  1.0, 'cat': 'Routine KPI'},
+    {'col': 'regulatory',         'label': 'Regulatory',           'max':  1.0, 'cat': 'Routine KPI'},
+    {'col': 'hcf',                'label': 'HCF',                  'max': 10.0, 'cat': 'Routine KPI'},
+    # Initiative (21 pts)
+    {'col': 'full_emr',           'label': 'Full EMR',             'max':  3.0, 'cat': 'Initiative'},
+    {'col': 'ultrasound',         'label': 'Ultrasound',           'max':  3.0, 'cat': 'Initiative'},
+    {'col': 'apts',               'label': 'APTS',                 'max':  3.0, 'cat': 'Initiative'},
+    {'col': 'community_pharmacy', 'label': 'Community Pharmacy',   'max':  3.0, 'cat': 'Initiative'},
+    {'col': 'dm_test',            'label': 'DM Test',              'max':  3.0, 'cat': 'Initiative'},
+    {'col': 'epi_modernization',  'label': 'EPI Modernization',    'max':  2.0, 'cat': 'Initiative'},
+    {'col': 'zero_dose',          'label': 'Zero Dose',            'max':  2.0, 'cat': 'Initiative'},
+    {'col': 'cash_program',       'label': 'Cash Program',         'max':  2.0, 'cat': 'Initiative'},
 ]
 
-TOTAL_MAX = 110.0  # Normalized to 110 per user request
+TOTAL_MAX = 100.0  # Latest: Routine KPI (79) + Initiative (21) = 100
 INDICATOR_COUNT = len(INDICATORS)
 IND_BY_COL = {i['col']: i for i in INDICATORS}
 
@@ -200,46 +201,39 @@ USERS = {
     'admin':          {'ph': _h('admin@2018'),          'role': 'Admin',       'cols': [], 'dept_name': 'Administration'},
     'superadmin':     {'ph': _h('super@2024'),          'role': 'Super Admin', 'cols': [], 'dept_name': 'Administration'},
     # ── Department Heads (username / password / columns they enter) ─────────
-    # 1. Medical Service → Medical Service, DM Test, WT
     'medical':        {'ph': _h('Medical@2024'),        'role': 'Dept Head',
-                       'cols': ['medical_service', 'dm_test', 'wt'],
+                       'cols': ['medical_service', 'ncd', 'wt', 'regulatory'],
                        'dept_name': 'Medical Service'},
-    # 2. Pharmacy & Logistic → Pharmacy & Logistic, APTS, Community Pharmacy, Ultrasound
     'pharmacy':       {'ph': _h('Pharmacy@2024'),       'role': 'Dept Head',
-                       'cols': ['pharmacy_logistic', 'apts', 'community_pharmacy', 'ultrasound'],
+                       'cols': ['pharmacy', 'apts', 'community_pharmacy', 'ultrasound', 'dm_test'],
                        'dept_name': 'Pharmacy & Logistic'},
-    # 3. Child Health → EPI Modernization, Zero Dose, EPI, Child Health
     'childhealth':    {'ph': _h('ChildHealth@2024'),    'role': 'Dept Head',
-                       'cols': ['epi_modernization', 'zero_dose', 'epi', 'child_health'],
+                       'cols': ['child_health', 'nutrition', 'epi', 'epi_modernization', 'zero_dose'],
                        'dept_name': 'Child Health'},
-    # 4. HMIS → Plan, Full EMR
     'hmis':           {'ph': _h('hmis@2024'),           'role': 'Dept Head',
-                       'cols': ['plan', 'full_emr'],
+                       'cols': ['hmis', 'full_emr'],
                        'dept_name': 'HMIS'},
-    # 5. TB & Leprosy → TB & Leprosy
     'tb':             {'ph': _h('TB@2024'),             'role': 'Dept Head',
-                       'cols': ['tb_leprosy'],
+                       'cols': ['tb'],
                        'dept_name': 'TB & Leprosy'},
-    # 6. Finance → Finance, CBHI
     'finance':        {'ph': _h('Finance@2024'),        'role': 'Dept Head',
-                       'cols': ['finance', 'cbhi'],
+                       'cols': ['hcf'],
                        'dept_name': 'Finance'},
-    # 7. Cash Program → Cash Program, Hygiene & Sanitation
     'cash_program':   {'ph': _h('CashProgram@2024'),    'role': 'Dept Head',
-                       'cols': ['cash_program', 'hygiene_sanitation'],
+                       'cols': ['cash_program', 'hygiene'],
                        'dept_name': 'Cash Program'},
-    # 8. PHEM → PHEM
     'phem':           {'ph': _h('PHEM@2024'),           'role': 'Dept Head',
                        'cols': ['phem'],
                        'dept_name': 'PHEM'},
-    # 9. Multi-Sectoral & HIV → Multi-Sectoral, HIV/STI
     'multi_sectoral': {'ph': _h('MultiSectoral@2024'), 'role': 'Dept Head',
-                       'cols': ['multi_sectoral', 'hiv_sti'],
+                       'cols': ['msr', 'hiv'],
                        'dept_name': 'Multi-Sectoral & HIV'},
-    # 10. RMH → RMH
     'rmh':            {'ph': _h('rmh@2024'),            'role': 'Dept Head',
                        'cols': ['rmh'],
                        'dept_name': 'RMH'},
+    'hr':             {'ph': _h('HR@2024'),             'role': 'Dept Head',
+                       'cols': ['hr'],
+                       'dept_name': 'HR Department'},
 }
 
 
@@ -748,15 +742,17 @@ def dept_head_view():
     card(f"""
     <h3 style="color:#2d3748;margin:0 0 6px;">Enter <span style="color:#1f77b4;">{col_label}</span> Scores</h3>
     <p style="color:#718096;margin:0;font-size:0.88rem;">
-        Values: 0 – {col_max} pts per Health Center. Click <strong>Save</strong> when done.
+        Values: 0 – 100% per Health Center. (Cut-point equivalent out of {col_max} will be computed automatically). Click <strong>Save</strong> when done.
     </p>""")
 
-    # Build current values from Excel (Filtered by Year & Quarter)
+    # Build current values from DB (Filtered by Year & Quarter)
     current_vals = {}
     for w in WOREDAS:
         mask = (df['woreda_name'] == w) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
         row = df[mask]
-        current_vals[w] = float(row[col_key].iloc[0]) if not row.empty else 0.0
+        weighted_val = float(row[col_key].iloc[0]) if not row.empty else 0.0
+        # Convert to percentage out of 100 for display
+        current_vals[w] = (weighted_val * 100.0 / col_max) if col_max > 0 else 0.0
 
     with st.form(f"dept_form_{col_key}_{sel_year}_{sel_q}"):
         # Table header - BOLD BORDERS
@@ -767,7 +763,7 @@ def dept_head_view():
                     border-radius:12px 12px 0 0;padding:12px 20px;">
             <div style="color:white;font-weight:900;font-size:1.1rem;letter-spacing:0.5px;">🏘️ HEALTH CENTER NAME</div>
             <div style="color:white;font-weight:900;font-size:1.1rem;text-align:center;letter-spacing:0.5px;">
-                {col_label.upper()}&nbsp;<span style="opacity:0.8;font-weight:400;font-size:0.85rem;">(MAX: {col_max})</span>
+                {col_label.upper()}&nbsp;<span style="opacity:0.8;font-weight:400;font-size:0.85rem;">(ENTER OUT OF 100, MAX CUT POINT: {col_max})</span>
             </div>
         </div>""", unsafe_allow_html=True)
 
@@ -784,10 +780,15 @@ def dept_head_view():
                     <span style="color:#0a1628;font-weight:800;font-size:1rem;">{woreda.upper()}</span>
                 </div>""", unsafe_allow_html=True)
             with c_inp:
-                inputs[woreda] = st.number_input(
-                    f"s{i}", min_value=0.0, max_value=col_max,
-                    value=current_vals[woreda], step=0.5,
+                st.markdown(f'<div style="background:{bg};border-bottom:2px solid #cbd5e0;border-right:2px solid #cbd5e0;border-left:2px solid #cbd5e0;padding:4px 8px;min-height:58px;display:flex;flex-direction:column;justify-content:center;">', unsafe_allow_html=True)
+                raw_val = st.number_input(
+                    f"s{i}", min_value=0.0, max_value=None,
+                    value=min(current_vals[woreda], 100.0), step=1.0,
                     key=f"di_{col_key}_{i}", label_visibility="collapsed")
+                inputs[woreda] = raw_val
+                if raw_val > 100.0:
+                    st.markdown('<p style="color:#e53e3e; font-size:0.8rem; font-weight:700; margin:4px 0 0 0;">Please Enter value <=100</p>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
         total_inp = sum(inputs.values())
         average   = total_inp / len(WOREDAS)
@@ -797,24 +798,31 @@ def dept_head_view():
                     border:3px solid #0c4a6e;
                     border-radius:0 0 12px 12px;padding:16px 20px;margin-bottom:20px;">
             <span style="color:#0c4a6e;font-weight:900;font-size:1.1rem;">
-                📊 WOREDA TOTAL: <span style="font-size:1.3rem;">{total_inp:.1f}</span> / {len(WOREDAS)*col_max:.0f}
-                &nbsp;&nbsp;|&nbsp;&nbsp; AVERAGE SCORE: <span style="font-size:1.3rem;">{average:.2f}</span>
+                📊 TOTAL: <span style="font-size:1.3rem;">{total_inp:.1f}%</span>
+                &nbsp;&nbsp;|&nbsp;&nbsp; AVERAGE: <span style="font-size:1.3rem;">{average:.2f}%</span>
             </span>
         </div>""", unsafe_allow_html=True)
 
+        any_invalid = any(val > 100.0 for val in inputs.values())
+
         _, btn_col, _ = st.columns([1, 2, 1])
         with btn_col:
-            save = st.form_submit_button(f"💾  Save {col_label} Data", use_container_width=True, type="primary")
+            save = st.form_submit_button(
+                f"💾  Save {col_label} Data", 
+                use_container_width=True, 
+                type="primary",
+                disabled=any_invalid
+            )
 
-    if save:
+    if save and not any_invalid:
         for woreda, val in inputs.items():
+            weighted_val = (val * col_max) / 100.0
             mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
             if mask.any():
-                df.loc[mask, col_key] = val
+                df.loc[mask, col_key] = weighted_val
                 df.loc[mask, 'last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
             else:
-                # Fallback: create row if missing (should be handled by init_data_file, but just in case)
-                new_row = {'woreda_name': woreda, 'year': sel_year, 'quarter': sel_q, col_key: val}
+                new_row = {'woreda_name': woreda, 'year': sel_year, 'quarter': sel_q, col_key: weighted_val}
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         
         save_data(df)
