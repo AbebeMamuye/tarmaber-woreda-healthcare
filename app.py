@@ -429,7 +429,7 @@ def load_data() -> pd.DataFrame:
         # ALWAYS return a skeleton to avoid KeyError later
         return pd.DataFrame(columns=['woreda_name', 'year', 'quarter'] + [i['col'] for i in INDICATORS])
 
-def save_data(df: pd.DataFrame):
+def save_data(df: pd.DataFrame, year=None, quarter=None):
     # Recalculate totals before saving
     df = recalculate(df)
     
@@ -455,8 +455,14 @@ def save_data(df: pd.DataFrame):
         st.warning("⚠️ **Saved to Local Backup:** Cloud database is currently offline or paused. Your changes are saved locally.")
         return
     
+    # Only upload the rows for the selected evaluation period to speed up network latency
+    if year and quarter:
+        sync_df = df[(df['year'] == year) & (df['quarter'] == quarter)]
+    else:
+        sync_df = df
+        
     # Convert to list of dicts for Supabase
-    records = df.to_dict('records')
+    records = sync_df.to_dict('records')
     
     try:
         # Upsert based on natural primary key (woreda, year, quarter)
@@ -830,7 +836,7 @@ def dept_head_view():
                 new_row = {'woreda_name': woreda, 'year': sel_year, 'quarter': sel_q, col_key: weighted_val}
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         
-        save_data(df)
+        save_data(df, year=sel_year, quarter=sel_q)
         st.session_state.success_msg = f"✅ {col_label} data saved for {sel_year} {sel_q}!"
         st.session_state.show_balloons = True
         st.rerun()
@@ -1262,7 +1268,7 @@ def render_edit_view():
             if mask.any():
                 df.loc[mask, col_key] = val
                 df.loc[mask, 'last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
-        save_data(df)
+        save_data(df, year=sel_year, quarter=sel_q)
         st.session_state.success_msg = f"✅ {chosen_label} data updated successfully!"
         st.rerun()
 
