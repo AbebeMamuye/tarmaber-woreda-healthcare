@@ -322,15 +322,19 @@ def cleanup_df(df: pd.DataFrame) -> pd.DataFrame:
     df['year']        = df['year'].astype(str).str.strip()
     df['quarter']     = df['quarter'].astype(str).str.strip()
     
-    # 3. Add missing indicators
+    # 3. Add missing indicators and force numeric type
     for ind in INDICATORS:
         if ind['col'] not in df.columns:
             df[ind['col']] = 0.0
+        else:
+            df[ind['col']] = pd.to_numeric(df[ind['col']], errors='coerce').fillna(0.0)
     
     # 4. Add summary columns
     for c in ('total_score', 'percentage', 'avg_indicator_perf', 'last_updated'):
         if c not in df.columns:
             df[c] = '' if c == 'last_updated' else 0.0
+        elif c != 'last_updated':
+            df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
             
     df.fillna(0.0, inplace=True)
     return df
