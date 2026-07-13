@@ -81,6 +81,11 @@ a[href*="share.streamlit.io/user/"],
 .main .block-container { padding: 1.5rem 2rem 3rem 2rem !important; max-width: 100% !important; }
 html, body, [class*="css"] { font-weight: 600 !important; }
 
+/* Make all selectbox text and select dropdown text black */
+div[data-baseweb="select"] *, ul[role="listbox"] * {
+    color: #000000 !important;
+}
+
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0a1628 0%, #1a3a5c 100%) !important;
