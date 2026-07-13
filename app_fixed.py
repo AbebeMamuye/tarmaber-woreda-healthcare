@@ -310,12 +310,10 @@ def verify_user(username, password):
 # Get woredas list
 def get_woredas():
     return [
-        'Angolela Tara Woreda', 'Ankober Woreda', 'Antsokia Gemiza Woreda', 'Asagirt Woreda',
-        'Bassona Worana', 'Berehet Woreda', 'Efratana Gidim Woreda', 'Ensaro Woreda',
-        'Gishe Woreda', 'Hagere Mariam Woreda', 'Kewot Woreda', 'Menz Gera Midir Woreda',
-        'Menz Keya Gebreal Woreda', 'Menz Lalo Midir Woreda', 'Menz Mama Midir Woreda',
-        'Merhabete Woreda', 'Mida Woremo Woreda', 'Minjar Shenkora Woreda', 'Mojana Wodera Woreda',
-        'Mortena Jiru Woreda', 'Saya Deberna Wayu Woreda', 'Shewarobit Town', 'Taremaber Woreda'
+        'Debre Sina Health Center',
+        'Armania Health Center',
+        'Agamber Health Center',
+        'Mezezo Health Center'
     ]
 
 # Calculate scores
@@ -466,6 +464,7 @@ def get_performance_data(ethiopian_year=None, quarter=None):
         
         df = pd.read_sql_query(base_query, conn, params=params)
         conn.close()
+        df = df[df['woreda_name'].isin(get_woredas())].copy()
         return df
     except Exception as e:
         st.error(f"Error fetching performance data: {str(e)}")
@@ -631,8 +630,9 @@ def show_department_data_summary(department):
             ORDER BY woreda_name
         '''
         df = pd.read_sql_query(query, conn, params=(department,))
+        df = df[df['woreda_name'].isin(get_woredas())].copy()
         
-        if not df.empty:
+        if df.empty:
             st.info(f"No data available for {department} yet.")
         else:
             st.write(f"📊 **{department} Data Summary:**")

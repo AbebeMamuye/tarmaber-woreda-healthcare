@@ -59,7 +59,7 @@ def admin_dashboard():
         with col1:
             st.markdown("""
             <div class="metric-card">
-                <h3 style="margin: 0; font-size: 24px;">Zone Average</h3>
+                <h3 style="margin: 0; font-size: 24px;">Woreda Average</h3>
                 <p style="margin: 0; font-size: 18px;">No Data</p>
             </div>
             """, unsafe_allow_html=True)
@@ -67,7 +67,7 @@ def admin_dashboard():
         with col2:
             st.markdown("""
             <div class="metric-card">
-                <h3 style="margin: 0; font-size: 24px;">Woredas Reported</h3>
+                <h3 style="margin: 0; font-size: 24px;">Health Centers Reported</h3>
                 <p style="margin: 0; font-size: 18px;">0</p>
             </div>
             """, unsafe_allow_html=True)
@@ -88,7 +88,7 @@ def admin_dashboard():
         with col1:
             st.markdown(f"""
             <div class="metric-card">
-                <h3 style="margin: 0; font-size: 24px;">Zone Average</h3>
+                <h3 style="margin: 0; font-size: 24px;">Woreda Average</h3>
                 <p style="margin: 0; font-size: 18px;">{zone_avg_percentage:.1f}%</p>
             </div>
             """, unsafe_allow_html=True)
@@ -96,7 +96,7 @@ def admin_dashboard():
         with col2:
             st.markdown(f"""
             <div class="metric-card">
-                <h3 style="margin: 0; font-size: 24px;">Woredas Reported</h3>
+                <h3 style="margin: 0; font-size: 24px;">Health Centers Reported</h3>
                 <p style="margin: 0; font-size: 18px;">{num_woredas_reported}</p>
             </div>
             """, unsafe_allow_html=True)
@@ -111,19 +111,19 @@ def admin_dashboard():
     
     st.markdown("---")
     
-    if not rankings.empty:
+    if rankings.empty:
         st.warning("📊 No performance data available. Please enter some data first!")
         return
     
     # Main Chart with Bold Labels
-    st.subheader("📊 Woreda Performance Rankings")
+    st.subheader("📊 Health Center Performance Rankings")
     
     fig = px.bar(
         rankings, 
         x='percentage_score', 
         y='woreda_name',
         orientation='h',
-        title='Woreda Performance Rankings (%)',
+        title='Health Center Performance Rankings (%)',
         color='percentage_score',
         color_continuous_scale=px.colors.sequential.Viridis,
         height=600
@@ -136,7 +136,7 @@ def admin_dashboard():
         yaxis_title_font=dict(size=16, family="Arial", color="black"),
         title_font=dict(size=20, family="Arial", color="black"),
         xaxis=dict(title='Performance Score (%)', tickfont=dict(size=12, family="Arial")),
-        yaxis=dict(title='Woreda Name', tickfont=dict(size=12, family="Arial"))
+        yaxis=dict(title='Health Center Name', tickfont=dict(size=12, family="Arial"))
     )
     
     st.plotly_chart(fig, use_container_width=True)
@@ -162,7 +162,7 @@ def admin_dashboard():
         
         ranking_data.append({
             'Rank': rank,
-            'Woreda Name': row.woreda_name,
+            'Health Center Name': row.woreda_name,
             'Total Score (Out of 105)': f"{row.total_score:.1f}",
             'Final Percentage (%)': percentage_display
         })
@@ -207,7 +207,7 @@ def admin_dashboard():
         'multi_sectoral': 'Multi-Sectoral', 'cash_program': 'Cash Program', 'hygiene_sanitation': 'Hygiene & Sanitation'
     }
     
-    # Aggregate data by woreda for stacked chart
+     # Aggregate data by woreda for stacked chart
     woreda_dept_data = []
     for woreda in rankings['woreda_name'].unique():
         woreda_data = all_data[all_data['woreda_name'] == woreda]
@@ -220,7 +220,7 @@ def admin_dashboard():
                     dept_contributions[dept_labels.get(dept_col, dept_col)] = total
         
         if dept_contributions:
-            dept_contributions['Woreda'] = woreda
+            dept_contributions['Health Center'] = woreda
             woreda_dept_data.append(dept_contributions)
     
     if woreda_dept_data:
@@ -230,7 +230,7 @@ def admin_dashboard():
         # Create stacked bar chart
         fig_stacked = px.bar(
             dept_df,
-            x='Woreda',
+            x='Health Center',
             y=[col for col in dept_columns if col in dept_labels.values()],
             title="Departmental Contribution to Total Score (Out of 105)",
             labels={
@@ -254,11 +254,11 @@ def admin_dashboard():
         
         st.plotly_chart(fig_stacked, use_container_width=True)
     
-    # Detailed Woreda Analysis
-    st.subheader("🔍 Detailed Woreda Analysis")
+    # Detailed Health Center Analysis
+    st.subheader("🔍 Detailed Health Center Analysis")
     
     selected_woreda = st.selectbox(
-        "Select Woreda for Detailed Analysis:",
+        "Select Health Center for Detailed Analysis:",
         options=rankings['woreda_name'].tolist(),
         key="detailed_woreda_analysis"
     )

@@ -5,6 +5,8 @@ import os
 import base64
 import plotly.express as px
 import plotly.graph_objects as go
+import socket
+import sqlite3
 from datetime import datetime
 from st_supabase_connection import SupabaseConnection
 from dotenv import load_dotenv
@@ -144,12 +146,10 @@ html, body, [class*="css"] { font-weight: 600 !important; }
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
 WOREDAS = [
-    'Angolela Tara Woreda', 'Ankober Woreda', 'Antsokia Gemiza Woreda', 'Asagirt Woreda',
-    'Bassona Worana', 'Berehet Woreda', 'Efratana Gidim Woreda', 'Ensaro Woreda',
-    'Gishe Woreda', 'Hagere Mariam Woreda', 'Kewot Woreda', 'Menz Gera Midir Woreda',
-    'Menz Keya Gebreal Woreda', 'Menz Lalo Midir Woreda', 'Menz Mama Midir Woreda',
-    'Merhabete Woreda', 'Mida Woremo Woreda', 'Minjar Shenkora Woreda', 'Mojana Wodera Woreda',
-    'Mortena Jiru Woreda', 'Saya Deberna Wayu Woreda', 'Shewarobit Town', 'Taremaber Woreda',
+    'Debre Sina Health Center',
+    'Armania Health Center',
+    'Agamber Health Center',
+    'Mezezo Health Center',
 ]
 
 INDICATORS = [
@@ -267,6 +267,18 @@ def get_db_connection():
     url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL") or "https://xjbntmsacknqmymvxoig.supabase.co"
     key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYm50bXNhY2tucW15bXZ4b2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDY4MjIsImV4cCI6MjA4ODAyMjgyMn0.2WfPhlZZ3RMtJqfNBIQcQfMwAnjA9Yp-dtnzfFgw-XI"
 
+    # Quick DNS check to see if project is "Paused"
+    try:
+        hostname = url.replace("https://", "").split("/")[0]
+        socket.gethostbyname(hostname)
+    except socket.gaierror:
+        st.error("🛑 **Database Project Paused or URL Invalid**")
+        st.warning("⚠️ The Supabase project at 'xjbntmsacknqmymvxoig' is currently **PAUSED** or unreachable.")
+        st.info("💡 **Action Required:** Please log in to your Supabase dashboard and **Resume** your project.")
+        return "PAUSED"
+    except Exception as e:
+        print(f"DNS Check Error: {e}")
+
     try:
         return st.connection("supabase", type=SupabaseConnection, 
                              url=url, key=key)
@@ -357,9 +369,46 @@ def init_db():
 
 def load_data() -> pd.DataFrame:
     conn = get_db_connection()
-    if not conn:
-        st.warning("⚠️ Database connection not configured. Please check Streamlit Secrets.")
-        return pd.DataFrame(columns=['woreda_name', 'year', 'quarter'] + [i['col'] for i in INDICATORS])
+    
+    # Handle Paused/Offline State by attempting local fallback
+    if conn is None or conn == "PAUSED":
+        st.info("🔄 **Local Mode:** Attempting to load data from local backup...")
+        try:
+            # Try Excel first
+            if os.path.exists(DATA_FILE):
+                df_excel = pd.read_excel(DATA_FILE)
+                df_excel = cleanup_df(df_excel)
+                df_excel = df_excel[df_excel['woreda_name'].isin(WOREDAS)].copy()
+                if not df_excel.empty:
+                    return df_excel
+            # Try Local DB
+            local_db = os.path.join(os.path.dirname(__file__), 'healthcare_performance.db')
+            if os.path.exists(local_db):
+                sqlite_conn = sqlite3.connect(local_db)
+                df = pd.read_sql_query("SELECT * FROM performance_data", sqlite_conn)
+                sqlite_conn.close()
+                if 'id' in df.columns: df = df.drop(columns=['id'])
+                df = cleanup_df(df)
+                df = df[df['woreda_name'].isin(WOREDAS)].copy()
+                if not df.empty: return df
+        except Exception as e:
+            st.error(f"Failed to load local backup: {e}")
+            
+        st.warning("⚠️ No database connection. Showing empty dashboard.")
+        # Return skeleton when offline and empty
+        skeleton_rows = []
+        for year in YEARS:
+            for q in QUARTERS:
+                for w in WOREDAS:
+                    row = {'woreda_name': w, 'year': year, 'quarter': q}
+                    for ind in INDICATORS:
+                        row[ind['col']] = 0.0
+                    row['total_score'] = 0.0
+                    row['percentage'] = 0.0
+                    row['avg_indicator_perf'] = 0.0
+                    row['last_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
+                    skeleton_rows.append(row)
+        return pd.DataFrame(skeleton_rows)
     
     try:
         # Try to fetch from table 'performance_data'
@@ -370,19 +419,27 @@ def load_data() -> pd.DataFrame:
         df = pd.DataFrame(res.data)
         
         # If the resulting DataFrame has a RangeIndex (integer columns), something is wrong.
-        # This can happen if res.data is not a list of dicts.
         if isinstance(df.columns, pd.RangeIndex):
-             # Fallback to skeleton if data is malformed
              st.error("⚠️ Loaded data is malformed (missing headers). Reverting to default view.")
              return pd.DataFrame(columns=['woreda_name', 'year', 'quarter'] + [i['col'] for i in INDICATORS])
 
-        # Drop Supabase internal 'id' column if it exists to avoid confusion in calc
         if 'id' in df.columns:
             df = df.drop(columns=['id'])
             
-        return cleanup_df(df)
+        df = cleanup_df(df)
+        df = df[df['woreda_name'].isin(WOREDAS)].copy()
+        if df.empty:
+            return init_db()
+        return df
     except Exception as e:
-        st.error(f"❌ Database error: {e}")
+        err_msg = str(e)
+        if "Name or service not known" in err_msg or "getaddrinfo failed" in err_msg:
+            st.error("❌ **Database Paused:** The connection to Supabase failed (DNS error). Please resume your project in the Supabase dashboard.")
+        elif "521" in err_msg or "Web server is down" in err_msg or "JSON could not be generated" in err_msg:
+            st.error("❌ **Database Starting Up (Error 521):** The Supabase server is not yet responding. This usually happens if the project was just resumed and is still booting up.")
+            st.warning("⏳ **Action:** Please wait 2-3 minutes and refresh this page. If it persists, ensure your project is actively 'Running' in Supabase.")
+        else:
+            st.error(f"❌ Database error: {e}")
         # ALWAYS return a skeleton to avoid KeyError later
         return pd.DataFrame(columns=['woreda_name', 'year', 'quarter'] + [i['col'] for i in INDICATORS])
 
@@ -464,7 +521,7 @@ def login_page():
         <marquee behavior="scroll" direction="left" scrollamount="8"
                  style="color:white;font-weight:900;font-size:1.8rem;
                         letter-spacing:0.5px;font-family:'Inter',sans-serif;">
-            &nbsp;&nbsp;&nbsp; Healthcare Performance Management System — North Shewa Zone Health  Department
+            &nbsp;&nbsp;&nbsp; Healthcare Performance Management System — Tarmaber Woreda Health Office
         </marquee>
     </div>
     """, unsafe_allow_html=True)
@@ -685,7 +742,7 @@ def dept_head_view():
     card(f"""
     <h3 style="color:#2d3748;margin:0 0 6px;">Enter <span style="color:#1f77b4;">{col_label}</span> Scores</h3>
     <p style="color:#718096;margin:0;font-size:0.88rem;">
-        Values: 0 – {col_max} pts per Woreda. Click <strong>Save</strong> when done.
+        Values: 0 – {col_max} pts per Health Center. Click <strong>Save</strong> when done.
     </p>""")
 
     # Build current values from Excel (Filtered by Year & Quarter)
@@ -702,7 +759,7 @@ def dept_head_view():
                     background:linear-gradient(135deg,#0a1628,#1f77b4);
                     border:3px solid #0a1628;
                     border-radius:12px 12px 0 0;padding:12px 20px;">
-            <div style="color:white;font-weight:900;font-size:1.1rem;letter-spacing:0.5px;">🏘️ WOREDA NAME</div>
+            <div style="color:white;font-weight:900;font-size:1.1rem;letter-spacing:0.5px;">🏘️ HEALTH CENTER NAME</div>
             <div style="color:white;font-weight:900;font-size:1.1rem;text-align:center;letter-spacing:0.5px;">
                 {col_label.upper()}&nbsp;<span style="opacity:0.8;font-weight:400;font-size:0.85rem;">(MAX: {col_max})</span>
             </div>
@@ -734,7 +791,7 @@ def dept_head_view():
                     border:3px solid #0c4a6e;
                     border-radius:0 0 12px 12px;padding:16px 20px;margin-bottom:20px;">
             <span style="color:#0c4a6e;font-weight:900;font-size:1.1rem;">
-                📊 ZONE TOTAL: <span style="font-size:1.3rem;">{total_inp:.1f}</span> / {len(WOREDAS)*col_max:.0f}
+                📊 WOREDA TOTAL: <span style="font-size:1.3rem;">{total_inp:.1f}</span> / {len(WOREDAS)*col_max:.0f}
                 &nbsp;&nbsp;|&nbsp;&nbsp; AVERAGE SCORE: <span style="font-size:1.3rem;">{average:.2f}</span>
             </span>
         </div>""", unsafe_allow_html=True)
@@ -780,7 +837,7 @@ def dept_head_view():
     .sumtable tr:nth-child(even) { background: #f8fafc; }
     </style>""", unsafe_allow_html=True)
 
-    header = ['#', 'WOREDA', f'{col_label.upper()} SCORE', 'PERCENTAGE', 'LEVEL']
+    header = ['#', 'HEALTH CENTER', f'{col_label.upper()} SCORE', 'PERCENTAGE', 'LEVEL']
     html = '<table class="sumtable"><thead><tr>'
     for h in header: html += f'<th>{h}</th>'
     html += '</tr></thead><tbody>'
@@ -892,7 +949,7 @@ def render_ranking_table(ranked: pd.DataFrame):
         <thead>
             <tr>
                 <th style="width:60px;text-align:center;">Rank</th>
-                <th>Woreda Name</th>
+                <th>Health Center Name</th>
                 <th style="text-align:center;">Total Score</th>
                 <th>Performance</th>
                 <th style="text-align:center;">Level</th>
@@ -929,8 +986,8 @@ def render_charts(ranked: pd.DataFrame, df: pd.DataFrame):
         color='bar_color',
         color_discrete_map={'#28a745': '#28a745', '#ffc107': '#ffc107', '#dc3545': '#dc3545'},
         text='avg_indicator_perf',
-        labels={'avg_indicator_perf': 'Avg Performance (%)', 'woreda_name': 'Woreda'},
-        title='<b>Woreda Performance Rankings (Average Indicator Achievement)</b>',
+        labels={'avg_indicator_perf': 'Avg Performance (%)', 'woreda_name': 'Health Center'},
+        title='<b>Health Center Performance Rankings (Average Indicator Achievement)</b>',
     )
     bar.update_layout(
         height=620, showlegend=False, paper_bgcolor='white', plot_bgcolor='#f8fafc',
@@ -953,13 +1010,13 @@ def render_charts(ranked: pd.DataFrame, df: pd.DataFrame):
     </div>""", unsafe_allow_html=True)
     
     selected_woreda = st.selectbox(
-        "🏘️ Select Woreda to Analysis Individual Indicators:", 
+        "🏘️ Select Health Center to Analyze Individual Indicators:", 
         options=sorted(WOREDAS), 
         index=0 if not ranked.empty else 0
     )
     
     if not selected_woreda:
-        st.info("💡 Please select a Woreda to generate the indicator breakdown graph.")
+        st.info("💡 Please select a Health Center to generate the indicator breakdown graph.")
     else:
         # Prepare data for line chart
         plot_data = []
@@ -1004,7 +1061,7 @@ def render_charts(ranked: pd.DataFrame, df: pd.DataFrame):
 
 
 def render_departmental_summary(df: pd.DataFrame):
-    """Shows total scores for each Department (Category) per Woreda."""
+    """Shows total scores for each Department (Category) per Health Center."""
     categories = sorted(list(set(i['cat'] for i in INDICATORS)))
     
     st.markdown("""
@@ -1026,7 +1083,7 @@ def render_departmental_summary(df: pd.DataFrame):
     .depttable tr:nth-child(even) { background: #f8fafc; }
     </style>""", unsafe_allow_html=True)
 
-    header = ['WOREDA'] + [c.upper() for c in categories] + ['TOTAL', '%']
+    header = ['HEALTH CENTER'] + [c.upper() for c in categories] + ['TOTAL', '%']
     html = '<table class="depttable"><thead><tr>'
     for h in header: html += f'<th>{h}</th>'
     html += '</tr></thead><tbody>'
@@ -1091,7 +1148,7 @@ def render_full_table_readonly(df: pd.DataFrame):
     # Table Header
     html = '<table class="fulltable"><thead>'
     # Row 1: Categories
-    html += '<tr><th rowspan="2">WOREDA</th>'
+    html += '<tr><th rowspan="2">HEALTH CENTER</th>'
     for cat, inds in cat_map.items():
         html += f'<th colspan="{len(inds)}" class="cat-header">{cat}</th>'
     html += '<th rowspan="2">TOTAL</th><th rowspan="2">%</th></tr>'
@@ -1153,7 +1210,7 @@ def render_edit_view():
     <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;
                 padding:11px 16px;margin-bottom:18px;">
         ⚠️ <strong>Super Admin Edit Mode</strong> — Editing:
-        <strong>{chosen_label}</strong> &nbsp;(Max per Woreda: <strong>{col_max}</strong>)
+        <strong>{chosen_label}</strong> &nbsp;(Max per Health Center: <strong>{col_max}</strong>)
     </div>""", unsafe_allow_html=True)
 
     with st.form(f"sa_form_{col_key}"):
@@ -1237,24 +1294,24 @@ def dashboard_view():
 
     with k1:
         st.markdown(f"""<div style="{kpi_style}border-top:4px solid #1f77b4;">
-            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Zone Average</p>
+            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Woreda Average</p>
             <h2 style="color:#1f77b4;font-size:2rem;margin:8px 0 0;font-weight:800;">{avg_pct:.1f}%</h2></div>""",
             unsafe_allow_html=True)
     with k2:
         st.markdown(f"""<div style="{kpi_style}border-top:4px solid #28a745;">
-            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Top Woreda 🥇</p>
+            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Top Health Center 🥇</p>
             <h3 style="color:#28a745;font-size:1rem;margin:8px 0 0;font-weight:800;">{top_row['woreda_name']}</h3>
             <p style="color:#28a745;margin:4px 0 0;font-weight:700;">{top_row['avg_indicator_perf']:.1f}%</p></div>""",
             unsafe_allow_html=True)
     with k3:
         st.markdown(f"""<div style="{kpi_style}border-top:4px solid #dc3545;">
-            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Lowest Woreda</p>
+            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Lowest Health Center</p>
             <h3 style="color:#dc3545;font-size:1rem;margin:8px 0 0;font-weight:800;">{bot_row['woreda_name']}</h3>
             <p style="color:#dc3545;margin:4px 0 0;font-weight:700;">{bot_row['avg_indicator_perf']:.1f}%</p></div>""",
             unsafe_allow_html=True)
     with k4:
         st.markdown(f"""<div style="{kpi_style}border-top:4px solid #7c3aed;">
-            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Woredas with Data</p>
+            <p style="color:#718096;font-size:0.78rem;font-weight:600;text-transform:uppercase;margin:0;">Health Centers with Data</p>
             <h2 style="color:#7c3aed;font-size:2rem;margin:8px 0 0;font-weight:800;">{filled}/{len(WOREDAS)}</h2></div>""",
             unsafe_allow_html=True)
 

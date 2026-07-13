@@ -92,12 +92,10 @@ def verify_user(username, password):
 # Get woredas list
 def get_woredas():
     return [
-        'Angolela Tara Woreda', 'Ankober Woreda', 'Antsokia Gemiza Woreda', 'Asagirt Woreda',
-        'Bassona Worana', 'Berehet Woreda', 'Efratana Gidim Woreda', 'Ensaro Woreda',
-        'Gishe Woreda', 'Hagere Mariam Woreda', 'Kewot Woreda', 'Menz Gera Midir Woreda',
-        'Menz Keya Gebreal Woreda', 'Menz Lalo Midir Woreda', 'Menz Mama Midir Woreda',
-        'Merhabete Woreda', 'Mida Woremo Woreda', 'Minjar Shenkora Woreda', 'Mojana Wodera Woreda',
-        'Mortena Jiru Woreda', 'Saya Deberna Wayu Woreda', 'Shewarobit Town', 'Taremaber Woreda'
+        'Debre Sina Health Center',
+        'Armania Health Center',
+        'Agamber Health Center',
+        'Mezezo Health Center'
     ]
 
 # Calculate scores
@@ -211,7 +209,7 @@ def simple_dashboard():
     
     st.markdown("---")
     st.subheader("📋 System Information")
-    st.write(f"**Total Woredas:** {len(get_woredas())}")
+    st.write(f"**Total Health Centers:** {len(get_woredas())}")
     st.write("**Total Possible Score:** 105 points")
     st.write("**Status:** System Running Successfully")
     

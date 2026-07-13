@@ -76,13 +76,10 @@ st.set_page_config(
 # Get woredas
 def get_woredas():
     return [
-        'Afar Woreda', 'Angolalla Terana Asagirt Woreda', 'Asagirt Woreda', 'Basona Werana Woreda',
-        'Bati Woreda', 'Borkena Woreda', 'Debre Berhan Woreda', 'Debre Sina Woreda',
-        'Efratana Gidim Woreda', 'Ensaro Woreda', 'Eskisey Woreda', 'Gewada Woreda',
-        'Gishe Woreda', 'Hagere Mariam Woreda', 'Kewot Woreda', 'Menz Gera Midir Woreda',
-        'Menz Keya Gebreal Woreda', 'Menz Lalo Midir Woreda', 'Menz Mama Midir Woreda',
-        'Merhabete Woreda', 'Mida Woremo Woreda', 'Minjar Shenkora Woreda', 'Mojana Wodera Woreda',
-        'Mortena Jiru Woreda', 'Saya Deberna Wayu Woreda', 'Shewarobit Town', 'Taremaber Woreda'
+        'Debre Sina Health Center',
+        'Armania Health Center',
+        'Agamber Health Center',
+        'Mezezo Health Center'
     ]
 
 # Calculate scores
@@ -236,23 +233,23 @@ def department_head_interface(department, username):
             
             # Add department-specific instructions
             if department == 'Medical Service':
-                st.info("🏥 Medical Service: Enter scores for all 30 Woredas (Max: 15 points each)")
+                st.info("🏥 Medical Service: Enter scores for all 4 Health Centers (Max: 15 points each)")
             elif department == 'CBHI':
-                st.info("💰 CBHI: Enter scores for all 30 Woredas (Max: 10 points each)")
+                st.info("💰 CBHI: Enter scores for all 4 Health Centers (Max: 10 points each)")
             elif department in ['EPI', 'TB & Leprosy', 'Child Health', 'PHEM']:
-                st.info(f"🏥 {department}: Enter scores for all 30 Woredas (Max: {info['max']} points each)")
+                st.info(f"🏥 {department}: Enter scores for all 4 Health Centers (Max: {info['max']} points each)")
             elif department in ['Finance', 'Plan', 'WT']:
-                st.info(f"📊 {department}: Enter scores for all 30 Woredas (Max: {info['max']} points each)")
+                st.info(f"📊 {department}: Enter scores for all 4 Health Centers (Max: {info['max']} points each)")
             elif department == 'RMH':
-                st.info("🏥 RMH: Enter scores for all 30 Woredas (Max: 10 points each)")
+                st.info("🏥 RMH: Enter scores for all 4 Health Centers (Max: 10 points each)")
             elif department in ['Ultrasound', 'APTS', 'Community Pharmacy', 'DM Test']:
-                st.info(f"🔬 {department}: Enter scores for all 30 Woredas (Max: {info['max']} points each)")
+                st.info(f"🔬 {department}: Enter scores for all 4 Health Centers (Max: {info['max']} points each)")
             elif department in ['EPI Modernization', 'Zero Dose', 'Multi-Sectoral', 'Cash Program']:
-                st.info(f"🆕 {department}: Enter scores for all 30 Woredas (Max: {info['max']} points each)")
+                st.info(f"🆕 {department}: Enter scores for all 4 Health Centers (Max: {info['max']} points each)")
             elif department in ['Full EMR']:
-                st.info("💻 Full EMR: Enter scores for all 30 Woredas (Max: 5 points each)")
+                st.info("💻 Full EMR: Enter scores for all 4 Health Centers (Max: 5 points each)")
             elif department in ['Hygiene & Sanitation', 'HIV/STI']:
-                st.info(f"🧼 {department}: Enter scores for all 30 Woredas (Max: {info['max']} points each)")
+                st.info(f"🧼 {department}: Enter scores for all 4 Health Centers (Max: {info['max']} points each)")
             
             woredas = get_woredas()
             input_data = {}
@@ -295,15 +292,15 @@ def department_head_interface(department, username):
                         # Update progress
                         progress = (i + 1) / len(input_data)
                         progress_bar.progress(progress)
-                        status_text.text(f"Saving data... {i + 1}/{len(input_data)} Woredas")
+                        status_text.text(f"Saving data... {i + 1}/{len(input_data)} Health Centers")
                     
                     progress_bar.empty()
                     status_text.empty()
                     
                     if success_count > 0:
-                        st.success(f"✅ Successfully saved {info['label']} data for {success_count} Woredas!")
+                        st.success(f"✅ Successfully saved {info['label']} data for {success_count} Health Centers!")
                         if error_count > 0:
-                            st.warning(f"⚠️ Failed to save data for {error_count} Woredas")
+                            st.warning(f"⚠️ Failed to save data for {error_count} Health Centers")
                     else:
                         st.error(f"❌ Failed to save {info['label']} data")
             
@@ -322,6 +319,7 @@ def department_head_interface(department, username):
             ORDER BY woreda_name
         '''
         df = pd.read_sql_query(query, conn, params=(department,))
+        df = df[df['woreda_name'].isin(get_woredas())].copy()
         
         if not df.empty:
             st.write(f"📊 **{department} Data Summary:**")

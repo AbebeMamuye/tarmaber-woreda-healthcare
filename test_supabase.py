@@ -1,17 +1,33 @@
 import requests
 import json
+import socket
+import sys
 
 SUPABASE_URL = "https://xjbntmsacknqmymvxoig.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYm50bXNhY2tucW15bXZ4b2lnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDY4MjIsImV4cCI6MjA4ODAyMjgyMn0.2WfPhlZZ3RMtJqfNBIQcQfMwAnjA9Yp-dtnzfFgw-XI"
 
 def check_connection():
+    hostname = SUPABASE_URL.replace("https://", "").split("/")[0]
     print(f"📡 Testing connection to {SUPABASE_URL}...")
+    
+    # 1. Check DNS resolution (common failure for paused projects)
+    print(f"🔍 Step 1: Checking DNS resolution for {hostname}...")
+    try:
+        ip = socket.gethostbyname(hostname)
+        print(f"✅ DNS Resolved: {ip}")
+    except socket.gaierror:
+        print(f"❌ DNS Resolution Failed!")
+        print(f"🚨 ALERT: The project at '{hostname}' is likely PAUSED.")
+        print("💡 ACTION: Log in to Supabase and resume your project.")
+        return
+
+    # 2. Check REST API
+    print(f"🔍 Step 2: Testing REST API response...")
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}"
     }
     
-    # Try to fetch performance_data table
     try:
         response = requests.get(f"{SUPABASE_URL}/rest/v1/performance_data?limit=1", headers=headers)
         if response.status_code == 200:

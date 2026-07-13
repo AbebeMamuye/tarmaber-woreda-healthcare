@@ -1,0 +1,29 @@
+name: Supabase Keep-Alive Heartbeat
+
+on:
+  schedule:
+    # Runs at 00:00 every Monday and Thursday (twice a week)
+    # This ensures it stays active within the 7-day inactivity window
+    - cron: '0 0 * * 1,4'
+  workflow_dispatch: # Allows manual trigger from GitHub UI for testing
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Heartbeat Script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python keep_alive.py
