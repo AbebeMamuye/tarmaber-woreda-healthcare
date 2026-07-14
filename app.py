@@ -602,6 +602,7 @@ def login_page():
             if not username or not password:
                 st.error("⚠️ Please enter both username and password.")
             else:
+                user = verify_user(username, password)
                 if user:
                     import hashlib
                     st.session_state.authenticated = True
@@ -614,7 +615,7 @@ def login_page():
                     auth_token = hashlib.sha256(f"{username.strip().lower()}:{user['ph']}".encode()).hexdigest()
                     st.query_params["u"] = username.strip().lower()
                     st.query_params["t"] = auth_token
-                    # Set defaults if not present
+                    # Set defaults
                     st.session_state.filter_year = "-- Select Year --"
                     st.session_state.filter_quarter = "-- Select Quarter --"
                     st.rerun()
