@@ -269,12 +269,21 @@ def verify_user(username: str, password: str):
 # DATA LAYER (Supabase Cloud Storage)
 # ─────────────────────────────────────────────────────────────────────────────
 QUARTERS = [
-    "Q1 (Hamle - Meskerem)",
-    "Q2 (Tikmt - Tahsas)",
-    "Q3 (Tir - Megabit)",
-    "Q4 (Miyazia - Sene)"
+    "-- Select Quarter --",
+    "Quarter 1",
+    "Quarter 2",
+    "Quarter 3",
+    "Quarter 4"
 ]
-YEARS = ["2016", "2017", "2018", "2019", "2020", "2021"]
+YEARS = [
+    "-- Select Year --",
+    "2016",
+    "2017",
+    "2018",
+    "2019",
+    "2020",
+    "2021"
+]
 
 def get_db_connection():
     """Get Supabase connection with credentials provided by the user."""
@@ -363,7 +372,9 @@ def init_db():
     """Initial load if database is empty."""
     rows = []
     for year in YEARS:
+        if year.startswith("--"): continue
         for q in QUARTERS:
+            if q.startswith("--"): continue
             for w in WOREDAS:
                 row = {'woreda_name': w, 'year': year, 'quarter': q}
                 for ind in INDICATORS:
@@ -408,7 +419,9 @@ def load_data() -> pd.DataFrame:
         # Return skeleton when offline and empty
         skeleton_rows = []
         for year in YEARS:
+            if year.startswith("--"): continue
             for q in QUARTERS:
+                if q.startswith("--"): continue
                 for w in WOREDAS:
                     row = {'woreda_name': w, 'year': year, 'quarter': q}
                     for ind in INDICATORS:
@@ -589,19 +602,21 @@ def login_page():
             if not username or not password:
                 st.error("⚠️ Please enter both username and password.")
             else:
-                user = verify_user(username, password)
                 if user:
+                    import hashlib
                     st.session_state.authenticated = True
                     st.session_state.username  = username.strip().lower()
                     st.session_state.role      = user['role']
                     st.session_state.u_cols    = user.get('cols', [])      # list of col keys
                     st.session_state.u_dept    = user.get('dept_name', '')
                     st.session_state.view      = 'Data Entry' if user['role'] == 'Dept Head' else 'Dashboard'
+                    # Store login credentials hash in query parameters to persist session
+                    auth_token = hashlib.sha256(f"{username.strip().lower()}:{user['ph']}".encode()).hexdigest()
+                    st.query_params["u"] = username.strip().lower()
+                    st.query_params["t"] = auth_token
                     # Set defaults if not present
-                    if 'filter_year' not in st.session_state:
-                         st.session_state.filter_year = "2018"
-                    if 'filter_quarter' not in st.session_state:
-                         st.session_state.filter_quarter = QUARTERS[2] # Q3
+                    st.session_state.filter_year = "-- Select Year --"
+                    st.session_state.filter_quarter = "-- Select Quarter --"
                     st.rerun()
                 else:
                     st.error("❌ Invalid username or password.")
@@ -651,10 +666,10 @@ def render_sidebar():
                 📅 Global Filters
             </div>""", unsafe_allow_html=True)
             
-            y_idx = YEARS.index(st.session_state.filter_year) if st.session_state.filter_year in YEARS else 2
+            y_idx = YEARS.index(st.session_state.filter_year) if st.session_state.filter_year in YEARS else 0
             st.session_state.filter_year = st.selectbox("Year (EFY)", YEARS, index=y_idx)
             
-            q_idx = QUARTERS.index(st.session_state.filter_quarter) if st.session_state.filter_quarter in QUARTERS else 2
+            q_idx = QUARTERS.index(st.session_state.filter_quarter) if st.session_state.filter_quarter in QUARTERS else 0
             st.session_state.filter_quarter = st.selectbox("Quarter", QUARTERS, index=q_idx)
             
             st.markdown("---")
@@ -688,6 +703,7 @@ def render_sidebar():
 
         st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True):
+            st.query_params.clear()
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.rerun()
@@ -719,11 +735,15 @@ def dept_head_view():
     </div>""", unsafe_allow_html=True)
     per_c1, per_c2 = st.columns(2)
     with per_c1:
-        y_idx = YEARS.index(st.session_state.get('filter_year', "2018")) if st.session_state.get('filter_year') in YEARS else 2
+        y_idx = YEARS.index(st.session_state.get('filter_year', "-- Select Year --")) if st.session_state.get('filter_year') in YEARS else 0
         sel_year = st.selectbox("Year (EFY)", YEARS, index=y_idx, key="filter_year")
     with per_c2:
-        q_idx = QUARTERS.index(st.session_state.get('filter_quarter', QUARTERS[2])) if st.session_state.get('filter_quarter') in QUARTERS else 2
+        q_idx = QUARTERS.index(st.session_state.get('filter_quarter', "-- Select Quarter --")) if st.session_state.get('filter_quarter') in QUARTERS else 0
         sel_q = st.selectbox("Quarter", QUARTERS, index=q_idx, key="filter_quarter")
+
+    if sel_year.startswith("--") or sel_q.startswith("--"):
+        st.info("ℹ️ Please select **Year** and **Quarter** to view and edit performance data.")
+        return
 
 
     # ── DROPDOWN: pick which data element to enter (shown only if >1 element) ──
@@ -1245,12 +1265,17 @@ def render_full_table_readonly(df: pd.DataFrame):
 # ─────────────────────────────────────────────────────────────────────────────
 def render_edit_view():
     page_header("✏️ Edit Performance Data", "Super Admin — Full Edit Access")
+    sel_year = st.session_state.get('filter_year', "-- Select Year --")
+    sel_q    = st.session_state.get('filter_quarter', "-- Select Quarter --")
+    
+    if sel_year.startswith("--") or sel_q.startswith("--"):
+        st.info("ℹ️ Please select **Year** and **Quarter** from the Global Filters in the sidebar to edit performance data.")
+        return
+        
     df = load_data()
     if df.empty and 'woreda_name' not in df.columns:
         st.error("❌ Database connection error (KeyError). Performance data could not be loaded.")
         return
-    sel_year = st.session_state.get('filter_year', "2018")
-    sel_q    = st.session_state.get('filter_quarter', QUARTERS[2])
     
     st.markdown(f"#### 📅 Period: {sel_year} {sel_q}")
 
@@ -1317,8 +1342,12 @@ def dashboard_view():
     if df.empty and 'woreda_name' not in df.columns:
         st.error("❌ Database connection error (KeyError). Dashboard could not be loaded.")
         return
-    sel_year = st.session_state.get('filter_year', "2018")
-    sel_q    = st.session_state.get('filter_quarter', QUARTERS[2])
+    sel_year = st.session_state.get('filter_year', "-- Select Year --")
+    sel_q    = st.session_state.get('filter_quarter', "-- Select Quarter --")
+    
+    if sel_year.startswith("--") or sel_q.startswith("--"):
+        st.info("ℹ️ Please select **Year** and **Quarter** from the Global Filters in the sidebar to view the dashboard.")
+        return
     
     # Filter by period
     df = df[(df['year'] == sel_year) & (df['quarter'] == sel_q)].copy()
@@ -1389,6 +1418,27 @@ def dashboard_view():
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
     init_data_file()
+
+    # Auto-login from query parameters to persist authentication on refresh
+    if not st.session_state.get('authenticated', False):
+        u_param = st.query_params.get("u")
+        t_param = st.query_params.get("t")
+        if u_param and t_param:
+            import hashlib
+            user = USERS.get(u_param.strip().lower())
+            if user:
+                expected_token = hashlib.sha256(f"{u_param.strip().lower()}:{user['ph']}".encode()).hexdigest()
+                if t_param == expected_token:
+                    st.session_state.authenticated = True
+                    st.session_state.username  = u_param.strip().lower()
+                    st.session_state.role      = user['role']
+                    st.session_state.u_cols    = user.get('cols', [])
+                    st.session_state.u_dept    = user.get('dept_name', '')
+                    st.session_state.view      = 'Data Entry' if user['role'] == 'Dept Head' else 'Dashboard'
+                    if 'filter_year' not in st.session_state:
+                         st.session_state.filter_year = "-- Select Year --"
+                    if 'filter_quarter' not in st.session_state:
+                         st.session_state.filter_quarter = "-- Select Quarter --"
 
     if not st.session_state.get('authenticated', False):
         login_page()
