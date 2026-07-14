@@ -727,6 +727,37 @@ def dept_head_view():
         st.error("❌ Data structure is invalid. Please contact the administrator.")
         return
 
+    # ── BLINKING NOTICE ───────────────────────────────────────────────────────
+    st.markdown("""
+    <style>
+    @keyframes blink-border {
+        0%,100% { box-shadow: 0 0 0px 0px rgba(220,53,69,0); border-color:#dc3545; }
+        50%      { box-shadow: 0 0 18px 6px rgba(220,53,69,0.55); border-color:#ff8c00; }
+    }
+    @keyframes blink-text {
+        0%,100% { opacity: 1; }
+        50%      { opacity: 0.35; }
+    }
+    .entry-notice {
+        display:flex; align-items:center; gap:14px;
+        background:linear-gradient(135deg,#fff3cd,#ffe0e0);
+        border:3px solid #dc3545; border-radius:12px;
+        padding:14px 22px; margin-bottom:22px;
+        animation: blink-border 1.2s ease-in-out infinite;
+    }
+    .entry-notice-icon { font-size:2rem; flex-shrink:0; }
+    .entry-notice-text {
+        color:#8b0000; font-weight:900; font-size:1.05rem;
+        text-transform:uppercase; letter-spacing:0.8px;
+        animation: blink-text 1.2s ease-in-out infinite;
+    }
+    </style>
+    <div class="entry-notice">
+        <span class="entry-notice-icon">⚠️</span>
+        <span class="entry-notice-text">YOU SHOULD ENTER DATA FROM 100%</span>
+    </div>
+    """, unsafe_allow_html=True)
+
     # ── PERIOD SELECTION ──────────────────────────────────────────────────────
     st.markdown("""
     <div style="background:#f8fafc; border:2px solid #1f77b4; border-radius:12px; padding:15px; margin-bottom:20px;">
@@ -1286,12 +1317,13 @@ def render_edit_view():
     col_key  = ind_info['col']
     col_max  = ind_info['max']
 
-    st.markdown(f"""
-    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;
-                padding:11px 16px;margin-bottom:18px;">
-        ⚠️ <strong>Super Admin Edit Mode</strong> — Editing:
-        <strong>{chosen_label}</strong> &nbsp;(Enter values as <strong>0–100%</strong>)
-    </div>""", unsafe_allow_html=True)
+    # ── BLINKING NOTICE ───────────────────────────────────────────────────────
+    st.markdown("""
+    <div class="entry-notice">
+        <span class="entry-notice-icon">⚠️</span>
+        <span class="entry-notice-text">YOU SHOULD ENTER DATA FROM 100%</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     with st.form(f"sa_form_{col_key}"):
         inputs = {}
