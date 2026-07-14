@@ -720,10 +720,10 @@ def dept_head_view():
     per_c1, per_c2 = st.columns(2)
     with per_c1:
         y_idx = YEARS.index(st.session_state.get('filter_year', "2018")) if st.session_state.get('filter_year') in YEARS else 2
-        sel_year = st.selectbox("Year (EFY)", YEARS, index=y_idx, key="entry_year")
+        sel_year = st.selectbox("Year (EFY)", YEARS, index=y_idx, key="filter_year")
     with per_c2:
         q_idx = QUARTERS.index(st.session_state.get('filter_quarter', QUARTERS[2])) if st.session_state.get('filter_quarter') in QUARTERS else 2
-        sel_q = st.selectbox("Quarter", QUARTERS, index=q_idx, key="entry_quarter")
+        sel_q = st.selectbox("Quarter", QUARTERS, index=q_idx, key="filter_quarter")
 
 
     # ── DROPDOWN: pick which data element to enter (shown only if >1 element) ──
@@ -845,28 +845,30 @@ def dept_head_view():
             save = st.form_submit_button(
                 f"💾  Save {col_label} Data", 
                 use_container_width=True, 
-                type="primary",
-                disabled=any_invalid
+                type="primary"
             )
 
-    if save and not any_invalid:
-        ts = datetime.now().strftime('%Y-%m-%d %H:%M')
-        for woreda, val in inputs.items():
-            weighted_val = float((val * col_max) / 100.0)
-            mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
-            if mask.any():
-                # Use .at[] row-by-row to avoid pandas dtype coercion errors
-                for idx in df.index[mask]:
-                    df.at[idx, col_key]       = weighted_val
-                    df.at[idx, 'last_updated'] = ts
-            else:
-                new_row = {'woreda_name': woreda, 'year': sel_year, 'quarter': sel_q, col_key: weighted_val}
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        
-        save_data(df, year=sel_year, quarter=sel_q)
-        st.session_state.success_msg = f"✅ {col_label} data saved for {sel_year} {sel_q}!"
-        st.session_state.show_balloons = True
-        st.rerun()
+    if save:
+        if any_invalid:
+            st.error("⚠️ Cannot save data. Some values are greater than 100%. Please correct them and try again.")
+        else:
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M')
+            for woreda, val in inputs.items():
+                weighted_val = float((val * col_max) / 100.0)
+                mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
+                if mask.any():
+                    # Use .at[] row-by-row to avoid pandas dtype coercion errors
+                    for idx in df.index[mask]:
+                        df.at[idx, col_key]       = weighted_val
+                        df.at[idx, 'last_updated'] = ts
+                else:
+                    new_row = {'woreda_name': woreda, 'year': sel_year, 'quarter': sel_q, col_key: weighted_val}
+                    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+            
+            save_data(df, year=sel_year, quarter=sel_q)
+            st.session_state.success_msg = f"✅ {col_label} data saved for {sel_year} {sel_q}!"
+            st.session_state.show_balloons = True
+            st.rerun()
 
     # ── Summary table (HTML for BOLD BORDERS) ─────────────────────────────────
     st.markdown("---")
