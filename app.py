@@ -1290,7 +1290,7 @@ def render_edit_view():
     <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;
                 padding:11px 16px;margin-bottom:18px;">
         ⚠️ <strong>Super Admin Edit Mode</strong> — Editing:
-        <strong>{chosen_label}</strong> &nbsp;(Max per Health Center: <strong>{col_max}</strong>)
+        <strong>{chosen_label}</strong> &nbsp;(Enter values as <strong>0–100%</strong>)
     </div>""", unsafe_allow_html=True)
 
     with st.form(f"sa_form_{col_key}"):
@@ -1298,7 +1298,9 @@ def render_edit_view():
         for i, woreda in enumerate(WOREDAS):
             mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
             row = df[mask]
-            cur = float(row[col_key].iloc[0]) if not row.empty else 0.0
+            # Convert stored weighted value back to percentage for display
+            stored_val = float(row[col_key].iloc[0]) if not row.empty else 0.0
+            cur_pct = (stored_val * 100.0 / float(col_max)) if col_max > 0 else 0.0
             bg  = '#f8fafc' if i % 2 == 0 else '#ffffff'
             c1, c2 = st.columns([3, 2])
             with c1:
@@ -1309,25 +1311,34 @@ def render_edit_view():
                     <span style="color:#2d3748;font-weight:600;">{woreda}</span>
                 </div>""", unsafe_allow_html=True)
             with c2:
-                inputs[woreda] = st.number_input(
-                    f"sa_{i}", min_value=0.0, max_value=float(col_max),
-                    value=cur, step=0.5, key=f"sa_{col_key}_{i}", label_visibility="collapsed")
+                raw_val = st.number_input(
+                    f"sa_{i}", min_value=0.0, max_value=None,
+                    value=min(cur_pct, 100.0), step=1.0,
+                    key=f"sa_{col_key}_{i}", label_visibility="collapsed")
+                inputs[woreda] = raw_val
+                if raw_val > 100.0:
+                    st.markdown('<p style="color:#e53e3e;font-size:0.78rem;margin:2px 0;">⚠️ Max 100%</p>', unsafe_allow_html=True)
 
+        any_invalid = any(v > 100.0 for v in inputs.values())
         _, btn_col, _ = st.columns([1, 2, 1])
         with btn_col:
             saved = st.form_submit_button(f"💾  Save {chosen_label}", use_container_width=True, type="primary")
 
     if saved:
-        ts = datetime.now().strftime('%Y-%m-%d %H:%M')
-        for woreda, val in inputs.items():
-            mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
-            if mask.any():
-                for idx in df.index[mask]:
-                    df.at[idx, col_key]        = float(val)
-                    df.at[idx, 'last_updated'] = ts
-        save_data(df, year=sel_year, quarter=sel_q)
-        st.session_state.success_msg = f"✅ {chosen_label} data updated successfully!"
-        st.rerun()
+        if any_invalid:
+            st.error("⚠️ Cannot save — some values exceed 100%. Please correct them.")
+        else:
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M')
+            for woreda, val in inputs.items():
+                weighted_val = float((val * float(col_max)) / 100.0)
+                mask = (df['woreda_name'] == woreda) & (df['year'] == sel_year) & (df['quarter'] == sel_q)
+                if mask.any():
+                    for idx in df.index[mask]:
+                        df.at[idx, col_key]        = weighted_val
+                        df.at[idx, 'last_updated'] = ts
+            save_data(df, year=sel_year, quarter=sel_q)
+            st.session_state.success_msg = f"✅ {chosen_label} data updated successfully!"
+            st.rerun()
 
     footer()
 
